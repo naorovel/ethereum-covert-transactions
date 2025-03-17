@@ -1,13 +1,21 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
-import uuid
-from io import BytesIO
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from gqlalchemy import Memgraph
 import pandas as pd
-import numpy as np
-import asyncio
 
 app = FastAPI()
+memgraph = Memgraph(host="localhost", port=7687)
+
 transactions_df = pd.read_csv("./src/data/transactions.csv")
+
+class QueryRequest(BaseModel):
+    query: str
+    
+# Configure Memgraph connection
+MEMGRAPH_HOST = "localhost"
+MEMGRAPH_PORT = 7687
 
 @app.get("/api")
 def hello_world():

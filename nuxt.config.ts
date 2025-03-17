@@ -23,5 +23,15 @@ export default defineNuxtConfig({
     }
   ],
   modules:['@nuxt/ui'],
-  css:['./assets/css/main.css']
+  css:['./assets/css/main.css'],
+  build: {
+    standalone: true,
+  },
+  nitro: {
+    devServer: {
+      // My files are under src, if yours are in the root you can change this to ./
+      watch: ['./src']
+    }
+}
+
 })

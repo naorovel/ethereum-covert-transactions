@@ -3,8 +3,8 @@
       <UContainer>
         <TransactionTable></TransactionTable>
       </UContainer>
-    <!-- <UContainer>
+    <UContainer>
       <EthGraph></EthGraph>
-    </UContainer> -->
+    </UContainer>
   </UContainer>
 </template>
