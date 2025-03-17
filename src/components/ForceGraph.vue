@@ -90,7 +90,7 @@ export default {
         .join('circle')
         .attr('r', 12)
         .attr('fill', '#ef4444')
-        .call(this.dragHandler)
+        .call(this.dragHandler())
 
       // Simulation handler
       this.simulation.nodes(this.nodes)
@@ -114,7 +114,7 @@ export default {
     },
     dragHandler() {
       //if (!this.d3 || !this.simulation) return;
-      
+      console.log("Drag handler being called!")
       return this.d3.drag()
         .on('start', event => {
           console.log('Drag start', event.subject);
@@ -146,5 +146,6 @@ export default {
 
 .graph-container circle:active {
   cursor: grabbing;
+  pointer-events: all;
 }
 </style>
