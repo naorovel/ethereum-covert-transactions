@@ -14,6 +14,11 @@ export default defineNuxtConfig({
       proxy: "http://127.0.0.1:8000/openapi.json",
     }
   },
+  runtimeConfig: {
+    public: {
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL,
+    }
+  },
 
   compatibilityDate: "2025-03-16",
   components: [

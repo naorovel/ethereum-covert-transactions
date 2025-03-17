@@ -6,16 +6,19 @@ from gqlalchemy import Memgraph
 import pandas as pd
 
 app = FastAPI()
-memgraph = Memgraph(host="localhost", port=7687)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 transactions_df = pd.read_csv("./src/data/transactions.csv")
 
 class QueryRequest(BaseModel):
     query: str
-    
-# Configure Memgraph connection
-MEMGRAPH_HOST = "localhost"
-MEMGRAPH_PORT = 7687
 
 @app.get("/api")
 def hello_world():
@@ -36,3 +39,26 @@ async def get_transactions(num_transactions: int):
     
     return result
 
+@app.get("/get_table_transactions")
+async def get_table_transactions(num_transactions: int): 
+    
+    display_transactions = transactions_df.head(num_transactions)
+    # Put data processing here...
+    
+    result = display_transactions.to_csv()
+    
+    return result
+
+@app.get("/get_graph_transactions")
+async def get_graph_transactions(num_transactions: int): 
+    
+    display_transactions = transactions_df.head(num_transactions)
+    # Put data processing here...
+    
+    result = display_transactions.to_csv()
+    
+    return result
+
+@app.get("/items")
+def read_items():
+    return [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}]
