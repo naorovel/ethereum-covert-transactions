@@ -1,7 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  devtools: { enabled: true },
+  devtools: { enabled: false },
   srcDir: "src/",
+
   routeRules: {
     '/api/**': {
       proxy: process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000/api/**" : "/api/**",
@@ -12,5 +13,15 @@ export default defineNuxtConfig({
     '/openapi.json': {
       proxy: "http://127.0.0.1:8000/openapi.json",
     }
-  } 
+  },
+
+  compatibilityDate: "2025-03-16",
+  components: [
+    {
+      path:'~/components',
+      pathPrefix: false,
+    }
+  ],
+  modules:['@nuxt/ui'],
+  css:['./assets/css/main.css']
 })
