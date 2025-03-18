@@ -12,7 +12,7 @@ type Transaction = {
   to_scam: number
 }
 
-const API_URL = 'http://localhost:8000/get_table_transactions?num_transactions=3000'
+const API_URL = 'http://localhost:8000/get_table_transactions?num_transactions=1000'
 
 const { data, status } = await useFetch<Transaction[]>(API_URL,{
     method: 'GET',
