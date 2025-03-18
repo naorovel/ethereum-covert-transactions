@@ -4,7 +4,7 @@
         title="Ethereum Transactions"
         description="10k transactions on the Ethereum blockchain network."
     >
-        <UButton label="View Transactions" color="neutral" variant="subtle" trailing-icon="i-lucide-chevron-up" />
+        <UButton label="View Transactions" color="neutral" variant="subtle"/>
 
         <template #body>
             <TransactionTable></TransactionTable>

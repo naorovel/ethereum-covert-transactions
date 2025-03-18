@@ -31,12 +31,19 @@ export default defineNuxtConfig({
   css:['./assets/css/main.css'],
   build: {
     standalone: true,
+    parallel: false,
+    cache: true,
+    hardSource: false
   },
   nitro: {
     devServer: {
       // My files are under src, if yours are in the root you can change this to ./
       watch: ['./src']
     }
-}
+  },
+    features: {
+    devLogs: false,
+    transitions: false
+  }
 
 })
