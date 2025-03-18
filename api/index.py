@@ -58,13 +58,31 @@ async def get_table_transactions(num_transactions: int):
 
 @app.get("/get_graph_transactions")
 async def get_graph_transactions(num_transactions: int): 
+    transactions_df = pd.read_csv("./src/data/transactions.csv")
+
     
     display_transactions = transactions_df.head(num_transactions)
-    # Put data processing here...
     
-    result = display_transactions.to_csv()
     
-    return result
+    transactions_df = display_transactions[["hash", "transaction_index", "from_address",
+                                               "to_address", "value", "block_timestamp",
+                                               "from_scam", "to_scam"]]
+    
+    # Renaming columns 
+    unique_addr = transactions_df['from_address'].unique().tolist() + transactions_df['to_address'].unique().tolist()
+        
+    nodes = []
+    for node in unique_addr: 
+        nodes.append({'id': node})
+        
+    transactions_df["link"] = transactions_df.apply(lambda x: {'source': x["from_address"], 
+                                                                    'target': x["to_address"]}, axis=1)
+        
+    links = transactions_df["link"].values.tolist()
+        
+    # Need to retun nodes, and links
+    print( {'nodes': nodes, 'links': links})
+    return {'nodes': nodes, 'links': links}
 
 @app.get("/items")
 def read_items():
