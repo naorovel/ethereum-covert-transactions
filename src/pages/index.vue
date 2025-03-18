@@ -1,5 +1,5 @@
 <template>
-  <UContainer>
+  <!-- <UContainer>
     <div>
     <h1>Color mode: {{ $colorMode.value }}</h1>
     <select v-model="$colorMode.preference">
@@ -10,15 +10,47 @@
     </select>
     </div>
       <UContainer>
-        <!-- <MockTable></MockTable> -->
+        <MockTable></MockTable>
         <TransactionTable></TransactionTable>
       </UContainer>
-    <UContainer>
+  </UContainer> -->
+  <div id="heading">
+    <h1>
+      Graph-Based Representation of Ethereum Transactions
+    </h1>
+  </div>
+  <div>
       <EthGraph></EthGraph>
-    </UContainer>
-  </UContainer>
+      <div id="footer">
+        <DrawerTable></DrawerTable>
+      </div>
+  </div>
+
 </template>
 
+<style lang="css">
+#heading {
+  position: fixed;
+  top: 0; 
+  left: 0;
+  width: 100%;
+  padding-top: 5vh;
+  padding-left: 5vw;
+}
+
+#footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    padding-bottom:5vh;
+    padding-left: 5vh;
+}
+
+h1 {
+  font-size: 3em
+}
+
+</style>
 
 <script setup>
 const colorMode = useColorMode()

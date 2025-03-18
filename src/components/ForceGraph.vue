@@ -1,8 +1,9 @@
 <template>
   <client-only>
-    <UCard class="graph-card">
-      <div ref="graphContainer" class="graph-container" />
-    </UCard>
+    <!-- <UCard class="graph-card">
+    </UCard> -->
+    <div ref="graphContainer" class="graph-container" />
+
     
     <!-- Debug output -->
     <!-- <div class="p-4 text-sm">
@@ -107,9 +108,10 @@ export default {
         })
     },
     getDimensions() {
+
       return {
         width: this.$refs.graphContainer.clientWidth,
-        height: 1000
+        height: 1080,
       }
     },
     dragHandler() {
