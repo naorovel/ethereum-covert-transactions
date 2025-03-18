@@ -5,9 +5,9 @@
     </UCard>
     
     <!-- Debug output -->
-    <div class="p-4 text-sm">
+    <!-- <div class="p-4 text-sm">
       <pre>Processed Links: {{ processedLinks }}</pre>
-    </div>
+    </div> -->
   </client-only>
 </template>
 
@@ -66,30 +66,30 @@ export default {
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', '#f8fafc')
+        .style('background', '#f7ede2')
 
       // Create simulation
       this.simulation = this.d3.forceSimulation()
-        .force('charge', this.d3.forceManyBody().strength(-200))
+        .force('charge', this.d3.forceManyBody().strength(-0.00))
         .force('center', this.d3.forceCenter(width / 2, height / 2))
-        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(100))
-        .force('collision', this.d3.forceCollide().radius(20))
+        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(2))
+        .force('collision', this.d3.forceCollide().radius(2))
 
       // Draw links
       const link = svg.append('g')
         .selectAll('line')
         .data(this.processedLinks)
         .join('line')
-        .attr('stroke', '#3b82f6')
-        .attr('stroke-width', 2)
+        .attr('stroke', '#f6bd60')
+        .attr('stroke-width', 1)
 
       // Draw nodes
       const node = svg.append('g')
         .selectAll('circle')
         .data(this.nodes)
         .join('circle')
-        .attr('r', 12)
-        .attr('fill', '#ef4444')
+        .attr('r', 1)
+        .attr('fill', '#84a59d')
         .call(this.dragHandler())
 
       // Simulation handler
@@ -109,7 +109,7 @@ export default {
     getDimensions() {
       return {
         width: this.$refs.graphContainer.clientWidth,
-        height: 600
+        height: 1000
       }
     },
     dragHandler() {
