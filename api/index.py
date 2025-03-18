@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from gqlalchemy import Memgraph
 import pandas as pd
+from json import loads, dumps
 
 app = FastAPI()
 
@@ -13,6 +14,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 transactions_df = pd.read_csv("./src/data/transactions.csv")
@@ -44,10 +46,15 @@ async def get_table_transactions(num_transactions: int):
     
     display_transactions = transactions_df.head(num_transactions)
     # Put data processing here...
+    table_transactions = display_transactions[["hash", "transaction_index", "from_address",
+                                               "to_address", "value", "block_timestamp",
+                                               "from_scam", "to_scam"]]
     
-    result = display_transactions.to_csv()
+    result = table_transactions.to_json(orient="records")
+    parsed = loads(result)
     
-    return result
+    
+    return parsed
 
 @app.get("/get_graph_transactions")
 async def get_graph_transactions(num_transactions: int): 
