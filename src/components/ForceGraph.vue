@@ -73,7 +73,7 @@ export default {
         .force('charge', this.d3.forceManyBody().strength(-0.00))
         .force('center', this.d3.forceCenter(width / 2, height / 2))
         .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(2))
-        .force('collision', this.d3.forceCollide().radius(2))
+        .force('collision', this.d3.forceCollide().radius(0.5))
 
       // Draw links
       const link = svg.append('g')

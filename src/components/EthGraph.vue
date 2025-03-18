@@ -9,8 +9,7 @@
       </div> -->
       <ForceGraph
       :nodes="data.nodes"
-      :links="data.links"
-         />
+      :links="data.links"/>
     </div>
     <div v-else>No data available</div>
   </div>
@@ -33,7 +32,7 @@ type GraphData = {
     links: Link[]
 }
 
-const API_URL = 'http://localhost:8000/get_graph_transactions?num_transactions=1000'
+const API_URL = 'http://localhost:8000/get_graph_transactions?num_transactions=10000'
 
 const { data, pending } = useFetch<GraphData>(API_URL, { // Note changed to GraphData (not array)
   headers: { 'Accept': '*/*' },

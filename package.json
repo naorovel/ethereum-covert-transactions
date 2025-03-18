@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@nuxt/devtools": "^1.2.0",
+    "@nuxtjs/color-mode": "^3.5.2",
     "nuxt": "^3.11.2",
     "vue": "^3.4.23",
     "vue-router": "^4.3.2"

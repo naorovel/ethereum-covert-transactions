@@ -27,7 +27,7 @@ export default defineNuxtConfig({
       pathPrefix: false,
     }
   ],
-  modules:['@nuxt/ui'],
+  modules:['@nuxt/ui', "@nuxtjs/color-mode"],
   css:['./assets/css/main.css'],
   build: {
     standalone: true,
