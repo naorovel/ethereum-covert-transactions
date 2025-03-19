@@ -2,7 +2,6 @@ from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from gqlalchemy import Memgraph
 import pandas as pd
 from json import loads, dumps
 
