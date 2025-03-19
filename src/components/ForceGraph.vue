@@ -93,7 +93,7 @@ export default {
       this.simulation = this.d3.forceSimulation()
         .force('charge', this.d3.forceManyBody().strength(-0.00))
         .force('center', this.d3.forceCenter(width / 2, height / 2))
-        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(1))
+        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(0.05))
         .force('collision', this.d3.forceCollide().radius(0.05))
 
       // Draw links and nodes inside zoom group
