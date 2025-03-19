@@ -35,7 +35,7 @@ npx create-nuxt-app nuxtjs-fastapi --example "https://github.com/naorovel/ethere
 
 ## Getting Started
 
-First, install the dependencies:
+First, makesure you have nodejs and python enviroment(we recommand to use a docker), then clone this repo and install the dependencies:
 
 ```bash
 npm install
