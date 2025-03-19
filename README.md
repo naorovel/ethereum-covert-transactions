@@ -10,6 +10,23 @@
 https://ethereum-covert-transactions.vercel.app/
 
 
+## Dataset
+
+We have used the following dataset for the demo:
+
+https://github.com/salam-ammari/Labeled-Transactions-based-Dataset-of-Ethereum-Network
+
+Detailed description can be found in their repo.
+
+
+## Developing Locally
+
+You can clone & create this repo with the following command
+
+```bash
+npx create-nuxt-app nuxtjs-fastapi --example "https://github.com/naorovel/ethereum-covert-transactions.git"
+```
+
 ## Getting Started
 
 First, install the dependencies:
@@ -36,24 +53,6 @@ pnpm dev
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 The FastApi server will be running on [http://127.0.0.1:8000](http://127.0.0.1:8000) 
-
-
-## Dataset
-
-We have used the following dataset for the demo:
-
-https://github.com/salam-ammari/Labeled-Transactions-based-Dataset-of-Ethereum-Network
-
-Detailed description can be found in their repo.
-
-
-## Developing Locally
-
-You can clone & create this repo with the following command
-
-```bash
-npx create-nuxt-app nuxtjs-fastapi --example "https://github.com/tutorfx/nuxtjs-fastapi"
-```
 
 
 ## How It Works
