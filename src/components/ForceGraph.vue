@@ -93,10 +93,10 @@ export default {
       this.simulation = this.d3.forceSimulation()
         .force('charge', this.d3.forceManyBody().strength(-0.00))
         .force('center', this.d3.forceCenter(width / 2, height / 2))
-        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(2))
-        .force('collision', this.d3.forceCollide().radius(0.5))
+        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(1))
+        .force('collision', this.d3.forceCollide().radius(0.05))
 
-      // Draw links inside zoom group
+      // Draw links and nodes inside zoom group
       const link = this.zoomGroup
         .append('g')
         .selectAll('line')
@@ -105,7 +105,6 @@ export default {
         .attr('stroke', '#2a9d8f')
         .attr('stroke-width', 0.2)
 
-      // Draw nodes inside zoom group
       const node = this.zoomGroup
         .append('g')
         .selectAll('circle')
@@ -130,7 +129,6 @@ export default {
         })
     },
 
-    // Modified drag handler to work with zoom
     dragHandler() {
       return this.d3.drag()
         .on('start', event => {
