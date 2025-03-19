@@ -1,7 +1,6 @@
 <template>
   <client-only>
     <div ref="graphContainer" class="graph-container">
-      <Ubutton class="reset-zoom" @click="resetZoom">Reset View</Ubutton>
     </div>
   </client-only>
 </template>
