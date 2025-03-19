@@ -1,26 +1,16 @@
-
-
 ## Introduction
 
 Visualization of Ethereum transaction data using interactive network graph structures.
 
 
-## Demo
+## Deployed Demo (not fully functional yet)
 
 https://ethereum-covert-transactions.vercel.app/
 
 
-## Developing Locally
+## Getting Started (Locally)
 
-You can clone & create this repo with the following command
-
-```bash
-npx create-nuxt-app nuxtjs-fastapi --example "https://github.com/tutorfx/nuxtjs-fastapi"
-```
-
-## Getting Started
-
-First, install the dependencies:
+First, install the dependencies (Note: you must have Node.js and npm installed):
 
 ```bash
 npm install
