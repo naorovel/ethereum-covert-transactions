@@ -16,7 +16,13 @@ We have used the following dataset for the demo:
 
 https://github.com/salam-ammari/Labeled-Transactions-based-Dataset-of-Ethereum-Network
 
-Detailed description can be found in their repo.
+The dataset utilized by this project is the Benchmark Labeled Transactions of Ethereum Network (BLTE) dataset, which is designed specifically to perform blockchain security research.
+
+The dataset is collected from the Ethereum Classic (ETC) network, a public, and open-source blockchain platform. It overcomes the limitations of previous blockchain datasets by ensuring a well-defined transaction representation and including labelled data to improve detection accuracy.
+
+By leveraging the BLTE dataset, our project aims to visualize Ethereum transactions and explore suspicious transaction patterns to enhance blockchain security analysis through further expansions to this visualization.
+
+More detailed description can be found in their repo.
 
 
 ## Developing Locally
