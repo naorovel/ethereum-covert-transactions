@@ -23,14 +23,6 @@ The dataset utilized by this project is the Benchmark Labeled Transactions of Et
 More detailed description can be found in their repo.
 
 
-## Developing Locally
-
-You can clone & create this repo with the following command
-
-```bash
-npx create-nuxt-app nuxtjs-fastapi --example "https://github.com/naorovel/ethereum-covert-transactions.git"
-```
-
 ## Getting Started
 
 First, makesure you have nodejs and python enviroment(we recommand to use a docker), then clone this repo and install the dependencies:
