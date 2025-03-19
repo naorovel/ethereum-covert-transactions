@@ -4,7 +4,7 @@
 
 Our project focuses on the visualization of Ethereum transaction data using interactive network graph structures. The system processes transaction data from a CSV file and presents key details such as sender and receiver addresses, transaction values, and scam labelling. The tabular data representation is controllable by users using selections of specific value intervals, transaction hashes, or addresses.
 
-By leveraging the BLTE dataset, our project aims to visualize Ethereum transactions and explore suspicious transaction patterns to enhance blockchain security analysis through further expansions to this visualization.
+By leveraging the BLTE dataset(described below), our project aims to visualize Ethereum transactions and explore suspicious transaction patterns to enhance blockchain security analysis through further expansions to this visualization.
 
 
 ## Demo
