@@ -4,6 +4,8 @@
 
 Our project focuses on the visualization of Ethereum transaction data using interactive network graph structures. The system processes transaction data from a CSV file and presents key details such as sender and receiver addresses, transaction values, and scam labelling. The tabular data representation is controllable by users using selections of specific value intervals, transaction hashes, or addresses.
 
+By leveraging the BLTE dataset, our project aims to visualize Ethereum transactions and explore suspicious transaction patterns to enhance blockchain security analysis through further expansions to this visualization.
+
 
 ## Demo
 
@@ -16,11 +18,7 @@ We have used the following dataset for the demo:
 
 https://github.com/salam-ammari/Labeled-Transactions-based-Dataset-of-Ethereum-Network
 
-The dataset utilized by this project is the Benchmark Labeled Transactions of Ethereum Network (BLTE) dataset, which is designed specifically to perform blockchain security research.
-
-The dataset is collected from the Ethereum Classic (ETC) network, a public, and open-source blockchain platform. It overcomes the limitations of previous blockchain datasets by ensuring a well-defined transaction representation and including labelled data to improve detection accuracy.
-
-By leveraging the BLTE dataset, our project aims to visualize Ethereum transactions and explore suspicious transaction patterns to enhance blockchain security analysis through further expansions to this visualization.
+The dataset utilized by this project is the Benchmark Labeled Transactions of Ethereum Network (BLTE) dataset, which is designed specifically to perform blockchain security research. It's collected from the Ethereum Classic (ETC) network, a public, and open-source blockchain platform. It overcomes the limitations of previous blockchain datasets by ensuring a well-defined transaction representation and including labelled data to improve detection accuracy.
 
 More detailed description can be found in their repo.
 
