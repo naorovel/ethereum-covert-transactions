@@ -41,7 +41,7 @@ export default {
       }
 
       this.zoom = this.d3.zoom()
-        .scaleExtent([0.1, 5])
+        .scaleExtent([0.1, 20])
         .on('zoom', (event) => {
           if (this.zoomGroup) {
             this.zoomGroup.attr('transform', event.transform)
@@ -102,8 +102,8 @@ export default {
         .selectAll('line')
         .data(this.processedLinks)
         .join('line')
-        .attr('stroke', '#f6bd60')
-        .attr('stroke-width', 1)
+        .attr('stroke', '#2a9d8f')
+        .attr('stroke-width', 0.2)
 
       // Draw nodes inside zoom group
       const node = this.zoomGroup
@@ -111,8 +111,8 @@ export default {
         .selectAll('circle')
         .data(this.nodes)
         .join('circle')
-        .attr('r', 1)
-        .attr('fill', '#84a59d')
+        .attr('r', 0.5)
+        .attr('fill', '#264653')
         .call(this.dragHandler())
 
       // Simulation handler
