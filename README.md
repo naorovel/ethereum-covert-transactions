@@ -2,6 +2,8 @@
 
 ## Introduction
 
+Our project focuses on the visualization of Ethereum transaction data using interactive network graph structures.
+
 The system processes transaction data from a CSV file and presents key details such as sender and receiver addresses, transaction values, and scam labelling.
 
 The tabular data representation is controllable by users using selections of specific value intervals, transaction hashes, or addresses.
