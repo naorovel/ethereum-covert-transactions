@@ -27,12 +27,24 @@ const { data, status } = await useFetch<Transaction[]>(API_URL,{
 
 const columns: TableColumn<Transaction>[] = [
     {
-        accessorKey: 'id',
+        accessorKey: 'transaction_index',
         header: 'ID'
     },
     {
         accessorKey: 'hash',
         header: 'Hash'
+    },
+    {
+        accessorKey: 'from_address',
+        header: 'From Address',
+    },
+    {
+        accessorKey: 'to_address',
+        header: 'To Address'
+    },
+    {
+        accessorKey: 'value',
+        header: 'Value'
     }
 ]
 </script>
@@ -40,7 +52,7 @@ const columns: TableColumn<Transaction>[] = [
 <template>
   <client-only>
     <UCard class="mt-4">
-      <UTable :data="data" :columns="columns" :loading="status === 'pending'" class="flex-1" />
+      <UTable sticky :data="data" :columns="columns" :loading="status === 'pending'" class="flex-1" />
     </UCard>
   </client-only>
 </template>
