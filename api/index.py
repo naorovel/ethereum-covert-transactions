@@ -26,12 +26,12 @@ class QueryRequest(BaseModel):
 def hello_world():
     return {"message": "Hello World", "api": "Python"}
 
-@app.get("/transaction")
+@app.get("/api/transaction")
 def get_transaction(): 
     return {"transaction": "json object"}
 
 
-@app.get("/get_transactions")
+@app.get("/api/get_transactions")
 async def get_transactions(num_transactions: int): 
     
     display_transactions = transactions_df.head(num_transactions)
@@ -41,7 +41,7 @@ async def get_transactions(num_transactions: int):
     
     return result
 
-@app.get("/get_table_transactions")
+@app.get("/api/get_table_transactions")
 async def get_table_transactions(num_transactions: int): 
     
     display_transactions = transactions_df.head(num_transactions)
