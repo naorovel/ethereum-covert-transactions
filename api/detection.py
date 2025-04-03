@@ -3,12 +3,11 @@ import pandas as pd
 import networkx as nx
 import random
 import itertools
-import json
 
-num_transactions_display = 100000
+num_transactions_display = 100
 
 ###### Creating graph
-transactions_df = pd.read_csv("./src/data/transactions.csv")
+transactions_df = pd.read_csv("src/data/transactions.csv")
 
 display_transactions=transactions_df.head(num_transactions_display)
 
