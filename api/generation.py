@@ -139,14 +139,16 @@ def embed_fake_transactions(model, features, edge_index, address_map,
         z_combined = model.reparameterize(mu_combined, logvar_combined)
     
     # 5. Calculate probabilities
-    adj_probs = torch.sigmoid(z_combined @ z_combined.t())
+    #adj_probs = torch.sigmoid(z_combined @ z_combined.t())
     
     # 6. Generate transactions
     # Fake -> Real connections
     for i in range(0, len(fake_indices), batch_size):
         if new_count >= max_new: break
         batch_fake = fake_indices[i:i+batch_size]
-        probs = adj_probs[batch_fake, :n_real]
+        #probs = adj_probs[batch_fake, :n_real]
+        batch_z = z_combined[batch_fake,:]
+        probs = torch.sigmoid(batch_z @ z_combined.t())[:, :n_real]
         top_real = select_context_nodes(probs, context_ratio, threshold)
         
         for fake_idx, real_indices in top_real:
@@ -168,7 +170,9 @@ def embed_fake_transactions(model, features, edge_index, address_map,
         for i in range(0, n_real, batch_size):
             if new_count >= max_new: break
             batch_real = real_indices[i:i+batch_size]
-            probs = adj_probs[batch_real, fake_indices]
+            #probs = adj_probs[batch_real, fake_indices]
+            batch_z = z_combined[batch_real,:]
+            probs = torch.sigmoid(batch_z @ z_combined.t())[:, :fake_indices]
             top_fake = select_context_nodes(probs, context_ratio, threshold)
             
             for real_idx, fake_idxs in top_fake:
@@ -186,7 +190,9 @@ def embed_fake_transactions(model, features, edge_index, address_map,
 
     # Modified Fake <-> Fake connections
     if new_count < max_new:
-        fake_probs = adj_probs[fake_indices, :][:, fake_indices]
+        #fake_probs = adj_probs[fake_indices, :][:, fake_indices]
+        batch_z = z_combined[fake_indices,:]
+        probs = torch.sigmoid(batch_z @ z_combined.t())[:, :fake_indices]
         fake_pairs = torch.nonzero(fake_probs > threshold)
         for src, dst in fake_pairs:
             if new_count >= max_new: break
