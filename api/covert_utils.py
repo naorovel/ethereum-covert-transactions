@@ -21,7 +21,7 @@ from eth_account import Account
 # Create a local Web3 instance for demonstration
 #w3 = Web3()
 # Connect to local testnet 
-w3 = Web3(Web3.HTTPProvider('http://localhost:60127'))
+w3 = Web3(Web3.HTTPProvider('http://localhost:51851'))
 print(f"Using Web3.py version: {web3.__version__}")
 print(f"Connected to Ethereum network: {w3.is_connected()}")
 
