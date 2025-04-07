@@ -25,16 +25,16 @@ print(f"Connected to Ethereum network: {w3.is_connected()}")
 
 def generate_ethereum_address():
     """Generate a random Ethereum address with private key."""
-    private_key = secrets.token_bytes(32)
-    # In a real implementation, you would derive the address from the private key
     # For demonstration, we'll create a random address
+    #private_key = secrets.token_bytes(32)
     #private_key_hex = binascii.hexlify(private_key).decode('ascii')
     #address = '0x' + secrets.token_hex(20)
+    priv = secrets.token_hex(32)
     private_key = "0x" + priv
     account = Account.from_key(private_key)
     return {
-        "address": address,
-        "private_key": private_key_hex
+        "address": account.address,
+        "private_key": private_key
     }
 
 
@@ -47,10 +47,13 @@ def generate_key(password, salt=None):
     return key, salt
 
 
-def encrypt_message(message, key):
+def encrypt_message(message, key, salt=None):
     """Encrypt a raw message using AES-256 into cipher"""
     # Generate an initialization vector
-    iv = os.urandom(16)
+    if salt==None:
+        iv = os.urandom(16)
+    else:
+        iv = salt
     # Pad the message
     padder = padding.PKCS7(128).padder()
     padded_data = padder.update(message.encode()) + padder.finalize()
@@ -141,6 +144,40 @@ def extract_message_from_data(data, method="hex"):
     except Exception as e:
         print(f"Error extracting message: {e}")
         return None
+
+
+def create_transaction(from_address, to_address, 
+                       value_in_ether=0, gas_price_gwei=50,
+                       encrypt=False, encryption_key=None,
+                       encoding_method="hex", add_padding=True,
+                       gas_limit=None, nonce=None):
+    """
+    Create a transaction with covert data embedded in the data field.
+    """
+    # Convert Ether to Wei (1 Ether = 10^18 Wei)
+    # Convert Gwei to Wei for gas price (1 Gwei = 10^9 Wei)
+    value_in_wei = w3.to_wei(value_in_ether, 'ether')
+    #gas_price_wei = w3.eth.gas_price
+    gas_price_wei = w3.to_wei(gas_price_gwei, 'gwei') 
+    if nonce is None:
+        nonce = 0  # In real usage: w3.eth.get_transaction_count(from_address)
+    # Determine appropriate gas limit if not specified
+    if gas_limit is None:
+        # Basic transfer: 21000, with data: more based on data size
+        gas_limit = 21000 
+    # Create the transaction dictionary
+    transaction = {
+        'from': from_address,
+        'to': to_address,
+        'value': value_in_wei,
+        'gas': gas_limit,
+        'gasPrice': gas_price_wei,
+        'nonce': nonce,
+        'data': "0x" 
+    }
+    return transaction
+
+
 
 
 def create_covert_transaction(from_address, to_address, secret_message,
