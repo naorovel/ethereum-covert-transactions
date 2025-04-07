@@ -19,16 +19,15 @@ from eth_account import Account
 #w3 = Web3(Web3.HTTPProvider(infura_sepolia_api))
 
 # Create a local Web3 instance for demonstration
-w3 = Web3()
+#w3 = Web3()
+# Connect to local testnet 
+w3 = Web3(Web3.HTTPProvider('http://localhost:60127'))
 print(f"Using Web3.py version: {web3.__version__}")
 print(f"Connected to Ethereum network: {w3.is_connected()}")
 
 def generate_ethereum_address():
     """Generate a random Ethereum address with private key."""
     # For demonstration, we'll create a random address
-    #private_key = secrets.token_bytes(32)
-    #private_key_hex = binascii.hexlify(private_key).decode('ascii')
-    #address = '0x' + secrets.token_hex(20)
     priv = secrets.token_hex(32)
     private_key = "0x" + priv
     account = Account.from_key(private_key)
@@ -80,6 +79,58 @@ def decrypt_message(encrypted_data, key):
     unpadder = padding.PKCS7(128).unpadder()
     data = unpadder.update(padded_data) + unpadder.finalize()
     return data.decode()
+
+
+def create_transaction(from_address, to_address, 
+                       value_in_ether=0, gas_price_gwei=50,
+                       encrypt=False, encryption_key=None,
+                       encoding_method="hex", add_padding=True,
+                       gas_limit=None, nonce=None):
+    """
+    Create a transaction with covert data embedded in the data field.
+    """
+    # Convert Ether to Wei (1 Ether = 10^18 Wei)
+    # Convert Gwei to Wei for gas price (1 Gwei = 10^9 Wei)
+    value_in_wei = w3.to_wei(value_in_ether, 'ether')
+    #gas_price_wei = w3.eth.gas_price
+    gas_price_wei = w3.to_wei(gas_price_gwei, 'gwei') 
+    # Get the current nonce for the sender
+    nonce = w3.eth.get_transaction_count(from_address)
+    if nonce is None:
+        nonce = 0  
+    # Get the current gas price estimates
+    gas_price = w3.eth.gas_price
+    # Determine appropriate gas limit if not specified
+    if gas_limit is None:
+        # Basic transfer: 21000, with data: more based on data size
+        gas_limit = 21000 
+    # Create the transaction dictionary
+    transaction = {
+        'from': from_address,
+        'to': to_address,
+        'value': value_in_wei,
+        'gas': gas_limit,
+        'gasPrice': gas_price_wei,
+        'nonce': nonce,
+        'data': "0x" 
+    }
+    return transaction
+
+
+def sign_transaction(w3, transaction, private_key):
+    """
+    Sign an Ethereum transaction.
+    """
+    signed_tx = w3.eth.account.sign_transaction(transaction, private_key)
+    return signed_tx
+
+
+def send_transaction(w3, signed_transaction):
+    """
+    Send a signed transaction to the Ethereum network.
+    """
+    tx_hash = w3.eth.send_raw_transaction(signed_transaction.raw_transaction)
+    return tx_hash
 
 
 def encode_message(message, method="base64"):
@@ -146,40 +197,6 @@ def extract_message_from_data(data, method="hex"):
         return None
 
 
-def create_transaction(from_address, to_address, 
-                       value_in_ether=0, gas_price_gwei=50,
-                       encrypt=False, encryption_key=None,
-                       encoding_method="hex", add_padding=True,
-                       gas_limit=None, nonce=None):
-    """
-    Create a transaction with covert data embedded in the data field.
-    """
-    # Convert Ether to Wei (1 Ether = 10^18 Wei)
-    # Convert Gwei to Wei for gas price (1 Gwei = 10^9 Wei)
-    value_in_wei = w3.to_wei(value_in_ether, 'ether')
-    #gas_price_wei = w3.eth.gas_price
-    gas_price_wei = w3.to_wei(gas_price_gwei, 'gwei') 
-    if nonce is None:
-        nonce = 0  # In real usage: w3.eth.get_transaction_count(from_address)
-    # Determine appropriate gas limit if not specified
-    if gas_limit is None:
-        # Basic transfer: 21000, with data: more based on data size
-        gas_limit = 21000 
-    # Create the transaction dictionary
-    transaction = {
-        'from': from_address,
-        'to': to_address,
-        'value': value_in_wei,
-        'gas': gas_limit,
-        'gasPrice': gas_price_wei,
-        'nonce': nonce,
-        'data': "0x" 
-    }
-    return transaction
-
-
-
-
 def create_covert_transaction(from_address, to_address, secret_message,
                               value_in_ether=0, gas_price_gwei=50,
                               encrypt=False, encryption_key=None,
@@ -224,22 +241,6 @@ def create_covert_transaction(from_address, to_address, secret_message,
     }
 
     return transaction
-
-
-def sign_transaction(w3, transaction, private_key):
-    """
-    Sign an Ethereum transaction.
-    """
-    signed_tx = w3.eth.account.sign_transaction(transaction, private_key)
-    return signed_tx
-
-
-def send_transaction(w3, signed_transaction):
-    """
-    Send a signed transaction to the Ethereum network.
-    """
-    tx_hash = w3.eth.send_raw_transaction(signed_transaction.rawTransaction)
-    return tx_hash
 
 
 def split_message_for_multiple_transactions(message, max_length=100):

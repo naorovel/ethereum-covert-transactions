@@ -1,16 +1,16 @@
-
 import os
 import random
 import string
 from covert_utils import generate_key, generate_ethereum_address,\
-encrypt_message,  decrypt_message, create_transaction
+encrypt_message,  decrypt_message, create_transaction, \
+w3,sign_transaction, send_transaction
 
 class Blocce:
     def __init__(self, password, salt=None):
         self.start_indicator = "λ"   # Start indicator for the encoded message
         self.password = password
         self.key, self.salt = generate_key(password, salt=None)
-        print(self.key, self.salt)
+        #print(self.key, self.salt)
         self.pkeys = []
         self.addresses = []
         self.addresse_to_pkey = {}
@@ -57,7 +57,11 @@ class Blocce:
           b = c.to_bytes()
           from_address = random.choices(self.sorted_addresses[b])[0]
           to_address = random.choices(self.addresses)[0]
-          transactions.append(create_transaction(from_address, to_address))
+          tx = create_transaction(from_address, to_address)
+          tx_signed = sign_transaction(w3, tx, self.addresse_to_pkey[from_address])
+          tx_hash = send_transaction(w3, tx_signed)
+          tx["hash"] = "0x" + tx_hash.hex()
+          transactions.append(tx)
         return transactions 
 
     def decode_message(self, transactions):
@@ -76,27 +80,46 @@ class Blocce:
 
 
 
+import csv
 
-# Example usage:
-password = "common_password"
-blocce = Blocce(password)
-blocce.generate_addresses()
-
-message = "a secret message"
-transactions = blocce.encode_message(message)
-print(len(transactions))
-print(blocce.decode_message(transactions))
+if __name__ == "__main__":
+    # Example usage:
+    password = "common_password"
+    blocce = Blocce(password)
+    blocce.generate_addresses()
 
 
-
-message = "a secret message"
-transactions = blocce.encode_message(message)
-print(len(transactions))
-print(blocce.decode_message(transactions))
-
-
+    def generate_random_string(length=10):
+        # Generate a random string of specified length using letters and digits
+        characters = string.ascii_letters + string.digits
+        random_string = ''.join(random.choices(characters, k=length))
+        return random_string
 
 
+    # Example usage
+    message = "a secret message"
+    transactions = blocce.encode_message(message)
+    print(transactions)
+    print(len(transactions))
+    print(blocce.decode_message(transactions))
+
+    #import random
+    #import string
+    #for i in range(10):
+    #    message = generate_random_string(100)
+    #    print("Random generated string:", message)
+    #    transactions = blocce.encode_message(message)
+    #    print(transactions)
+    #    print(len(transactions))
+    #    print(blocce.decode_message(transactions))
+
+    # Extract column headers from the keys of the first dictionary
+    headers = list(transactions[0].keys())
+    # Open (or create) the CSV file in write mode
+    with open('blocce_transactions.csv', 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer.writeheader()     # Write header row using dictionary keys
+        writer.writerows(transactions)   # Write all rows in one go
 
 
 
