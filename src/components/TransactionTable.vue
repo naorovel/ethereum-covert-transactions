@@ -16,7 +16,7 @@ type Transaction = {
   to_scam: boolean
 }
 
-const API_URL = 'http://localhost:8000/get_table_transactions?num_transactions=10000'
+const API_URL = 'http://localhost:8000/get_table_transactions?num_transactions=1000'
 
 const searchTerm = ref('')
 const columnFilters = ref<Record<string, any>>({
