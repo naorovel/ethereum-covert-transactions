@@ -3,6 +3,7 @@ import pandas as pd
 import networkx as nx
 import random
 import itertools
+import json
 
 num_transactions_display = 1000
 
@@ -12,7 +13,7 @@ num_transactions_display = 1000
 def combine_transactions(): 
     txs_df =  pd.read_csv("./src/data/transactions.csv") 
     txs_df["type"] = "real"
-    txs_df["covert"] = False
+    txs_df["covert_generated"] = False
     # Get rid of unnecessary columns
     txs_df["source"] = txs_df["from_address"]
     txs_df["target"] = txs_df["to_address"]
@@ -20,21 +21,21 @@ def combine_transactions():
         
     blocce_df =  pd.read_csv("./src/data/blocce_transactions.csv") 
     blocce_df["type"] = "blocce"
-    blocce_df["covert"] = True
+    blocce_df["covert_generated"] = True
     blocce_df["source"] = blocce_df["from_address"]
     blocce_df["target"] = blocce_df["to_address"]
     print(len(blocce_df))
     
     embedded_df = pd.read_csv("./src/data/embedded_transactions.csv")
     embedded_df["type"] = "generated"
-    embedded_df["covert"] = True
+    embedded_df["covert_generated"] = True
     embedded_df["source"] = embedded_df["input_address"]
     embedded_df["target"] = embedded_df["output_address"]
     print(len(embedded_df))
     
     txs_df = pd.concat([txs_df, blocce_df, embedded_df], ignore_index=True, axis=0)
     
-    txs_df_filtered = txs_df[["source", "target", "type", "covert"]]
+    txs_df_filtered = txs_df[["source", "target", "type", "covert_generated"]]
     print(len(txs_df_filtered))
     
     txs_df_filtered.to_csv('./src/data/all_transactions.csv', index=False)
@@ -143,7 +144,10 @@ def get_detection_results():
         nodes.append({'id': node})
         
         transactions_df["link"] = transactions_df.apply(lambda x: {'source': x["source"], 
-                                                                    'target': x["target"]}, axis=1)
+                                                                    'target': x["target"],
+                                                                    'covert_generated': x["covert_generated"],
+                                                                    'type': x["type"],
+                                                                    'covert': False}, axis=1)
             
         links = transactions_df["link"].values.tolist()
 
@@ -168,12 +172,20 @@ def get_detection_results():
     # Show detailed results
     print("Edge Type Breakdown:")
     for edge in annotated_graph.edges(keys=True, data=True):
-        edge_type = "COVERT" if edge[-1].get('covert') else "Normal"
+        if edge[-1].get('covert'):
+            edge_type = "COVERT"
+        else:
+            edge_type = "Normal"
+        # edge_type = "COVERT" if edge[-1].get('covert') else "Normal"
         print(f"- {edge[:3]}: {edge_type}")
 
     print(f"\nFinal Counts: {covert} covert, {normal} normal")
     
+    json_res = json.dumps(annotated_graph, default=nx.node_link_data)
     
+    with open('src/data/graph.json', 'w') as f:
+        json.dump(json_res, f)
     
-    
+    nx.to_pandas_edgelist(annotated_graph).to_csv('src/data/graph.csv', index=False)
+        
 get_detection_results()
