@@ -38,18 +38,20 @@ def get_nodes_links_from_df(transactions_df, start_idx, num_transactions):
     return nodes, links
 
 
+
 class QueryRequest(BaseModel):
     query: str
 
-@app.on_event("startup")
-async def startup():
-    app.state.txs_df = pd.read_csv("./src/data/transactions.csv") 
-    app.state.blocce_fund_txs_df = pd.read_csv("./api/fund_transactions.csv")
-    app.state.blocce_covert_txs_df = pd.read_csv("./api/blocce_transactions.csv") 
-    app.state.nodes = []
-    app.state.links = []
-    app.state.blocce_fund_txs_idx = 0
-    app.state.blocce_covert_txs_idx = 0
+# @app.on_event("startup")
+# async def startup():
+#     app.state.txs_df = pd.read_csv("./src/data/transactions.csv") 
+#     app.state.blocce_fund_txs_df = pd.read_csv("./api/fund_transactions.csv")
+#     app.state.blocce_covert_txs_df = pd.read_csv("./api/blocce_transactions.csv") 
+#     app.state.embedded_txs_df = pd.read_csv("./data/embedded_transactions.csv")
+#     app.state.nodes = []
+#     app.state.links = []
+#     app.state.blocce_fund_txs_idx = 0
+#     app.state.blocce_covert_txs_idx = 0
 
 @app.get("/api")
 def hello_world():
@@ -92,15 +94,27 @@ async def get_init_graph_transactions(num_transactions: int):
     return {"message": f"Initial graph transactions loaded with {num_transactions} transactions."}
 
 @app.get("/get_graph_transactions")
-async def get_graph_transactions(): 
+async def get_graph_transactions(num_transactions: int): 
     transactions_df = app.state.blocce_fund_txs_df 
     print(app.state.blocce_fund_txs_idx)
-    nodes, links = get_nodes_links_from_df(transactions_df, app.state.blocce_fund_txs_idx, 100)
+    nodes, links = get_nodes_links_from_df(transactions_df, app.state.blocce_fund_txs_idx, num_transactions)
     app.state.nodes += nodes
     app.state.links += links
     print("/get_graph_transactions called")
     print(len(app.state.nodes), len(app.state.links))
-    app.state.blocce_fund_txs_idx += 100
+    app.state.blocce_fund_txs_idx += num_transactions
+    return {'nodes': app.state.nodes, 'links': app.state.links}
+
+@app.get("/fetch_graph_transactions")
+async def fetch_graph_transactions(num_transactions=10): 
+    transactions_df = app.state.blocce_fund_txs_df 
+    print(app.state.blocce_fund_txs_idx)
+    nodes, links = get_nodes_links_from_df(transactions_df, app.state.blocce_fund_txs_idx, num_transactions)
+    app.state.nodes += nodes
+    app.state.links += links
+    print("/get_graph_transactions called")
+    print(len(app.state.nodes), len(app.state.links))
+    app.state.blocce_fund_txs_idx += num_transactions
     return {'nodes': app.state.nodes, 'links': app.state.links}
 
 @app.get("/items")

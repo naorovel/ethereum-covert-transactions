@@ -4,32 +4,41 @@ import networkx as nx
 import random
 import itertools
 
-num_transactions_display = 100
+num_transactions_display = 1000
 
 ###### Creating graph
-transactions_df = pd.read_csv("src/data/transactions.csv")
 
-display_transactions=transactions_df.head(num_transactions_display)
-
-transactions_df = display_transactions
-
-unique_addr = transactions_df['from_address'].unique().tolist() + transactions_df['to_address'].unique().tolist()
-
-nodes = []
-
-for node in unique_addr: 
-    nodes.append({'id': node})
+   
+def combine_transactions(): 
+    txs_df =  pd.read_csv("./src/data/transactions.csv") 
+    txs_df["type"] = "real"
+    txs_df["covert"] = False
+    # Get rid of unnecessary columns
+    txs_df["source"] = txs_df["from_address"]
+    txs_df["target"] = txs_df["to_address"]
+    print(len(txs_df))
         
-    transactions_df["link"] = transactions_df.apply(lambda x: {'source': x["from_address"], 
-                                                                'target': x["to_address"],
-                                                                'block_timestamp': x["block_timestamp"],
-                                                                'transaction_index': x["transaction_index"],
-                                                                'hash': x['hash'],
-                                                                'value': x['value']}, axis=1)
-        
-    links = transactions_df["link"].values.tolist()
+    blocce_df =  pd.read_csv("./src/data/blocce_transactions.csv") 
+    blocce_df["type"] = "blocce"
+    blocce_df["covert"] = True
+    blocce_df["source"] = blocce_df["from_address"]
+    blocce_df["target"] = blocce_df["to_address"]
+    print(len(blocce_df))
     
-
+    embedded_df = pd.read_csv("./src/data/embedded_transactions.csv")
+    embedded_df["type"] = "generated"
+    embedded_df["covert"] = True
+    embedded_df["source"] = embedded_df["input_address"]
+    embedded_df["target"] = embedded_df["output_address"]
+    print(len(embedded_df))
+    
+    txs_df = pd.concat([txs_df, blocce_df, embedded_df], ignore_index=True, axis=0)
+    
+    txs_df_filtered = txs_df[["source", "target", "type", "covert"]]
+    print(len(txs_df_filtered))
+    
+    txs_df_filtered.to_csv('./src/data/all_transactions.csv', index=False)
+    
 def detect_covert_subgraphs(G):
     # Calculate structural features for all subgraphs
     components = (nx.weakly_connected_components(G) if G.is_directed() 
@@ -113,27 +122,58 @@ def count_covert_transactions(G):
             
     return covert, non_covert
 
-# Load graph with proper multigraph handling
-G = nx.node_link_graph({'directed': True, 'multigraph': True, 'graph': {}, 'nodes': nodes, 'links': links})    
 
-# Process the graph
-annotated_graph, stats = detect_covert_subgraphs(G)
+####################### Main
 
-# Display results
-print(f"Detection Threshold (Th): {stats['threshold']}")
-print(f"Base Offset (ε): {stats['epsilon']}")
-print("\nNode Attributes:")
-print(annotated_graph.nodes(data=True))
-print("\nEdge Attributes:")
-print(list(annotated_graph.edges(keys=True, data=True)))
+def get_detection_results(): 
+        
+    combine_transactions()
 
-# Count transactions
-covert, normal = count_covert_transactions(annotated_graph)
+    transactions_df = pd.read_csv("src/data/all_transactions.csv")
 
-# Show detailed results
-print("Edge Type Breakdown:")
-for edge in annotated_graph.edges(keys=True, data=True):
-    edge_type = "COVERT" if edge[-1].get('covert') else "Normal"
-    print(f"- {edge[:3]}: {edge_type}")
+    display_transactions=transactions_df.sample(num_transactions_display, random_state=56) # 56, 57 are good roots for viz
 
-print(f"\nFinal Counts: {covert} covert, {normal} normal")
+    transactions_df = display_transactions
+
+    unique_addr = transactions_df['source'].unique().tolist() + transactions_df['target'].unique().tolist()
+
+    nodes = []
+
+    for node in unique_addr: 
+        nodes.append({'id': node})
+        
+        transactions_df["link"] = transactions_df.apply(lambda x: {'source': x["source"], 
+                                                                    'target': x["target"]}, axis=1)
+            
+        links = transactions_df["link"].values.tolist()
+
+
+    # Load graph with proper multigraph handling
+    G = nx.node_link_graph({'directed': True, 'multigraph': True, 'graph': {}, 'nodes': nodes, 'links': links})    
+
+    # Process the graph
+    annotated_graph, stats = detect_covert_subgraphs(G)
+
+    # Display results
+    print(f"Detection Threshold (Th): {stats['threshold']}")
+    print(f"Base Offset (ε): {stats['epsilon']}")
+    print("\nNode Attributes:")
+    # print(annotated_graph.nodes(data=True))
+    # print("\nEdge Attributes:")
+    # print(list(annotated_graph.edges(keys=True, data=True)))
+
+    # Count transactions
+    covert, normal = count_covert_transactions(annotated_graph)
+
+    # Show detailed results
+    print("Edge Type Breakdown:")
+    for edge in annotated_graph.edges(keys=True, data=True):
+        edge_type = "COVERT" if edge[-1].get('covert') else "Normal"
+        print(f"- {edge[:3]}: {edge_type}")
+
+    print(f"\nFinal Counts: {covert} covert, {normal} normal")
+    
+    
+    
+    
+get_detection_results()
