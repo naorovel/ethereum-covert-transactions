@@ -16,19 +16,23 @@ class VGAE(nn.Module):
     def __init__(self, in_channels, hidden_dim, out_channels):
         super(VGAE, self).__init__()
         # Encoder layers
-        self.conv_mu = GCNConv(in_channels, out_channels)
-        self.conv_logvar = GCNConv(in_channels, out_channels)
+        self.out_channels = out_channels  # Add this line
+        self.conv1 = GCNConv(in_channels, hidden_dim)
+        self.conv_mu = GCNConv(hidden_dim, out_channels)
+        self.conv_logvar = GCNConv(hidden_dim, out_channels)
         
         # Initialize weights properly
-        nn.init.xavier_normal_(self.conv_mu.lin.weight)
-        nn.init.xavier_normal_(self.conv_logvar.lin.weight)
+        nn.init.normal_(self.conv_mu.lin.weight, std=0.01)
+        nn.init.normal_(self.conv_logvar.lin.weight, std=0.01)
 
     def encode(self, x, edge_index):
-        mu = self.conv_mu(x, edge_index)
-        mu = F.relu(mu)
-        logvar = self.conv_logvar(x, edge_index)
-        logvar = F.relu(logvar)
-        return mu, logvar
+        # mu = self.conv_mu(x, edge_index)
+        # # mu = F.relu(mu)
+        # logvar = self.conv_logvar(x, edge_index)
+        # logvar = F.relu(logvar)
+        x = F.relu(self.conv1(x, edge_index))  # Activation only here
+        return self.conv_mu(x, edge_index), self.conv_logvar(x, edge_index)
+        # return mu, logvar
 
     def reparameterize(self, mu, logvar):
         if self.training:
@@ -41,7 +45,7 @@ class VGAE(nn.Module):
     def decode(self, z, edge_index):
         src, dst = edge_index
         logits = (z[src] * z[dst]).sum(dim=1)
-        return logits
+        return logits/math.sqrt(self.out_channels)
 
     def forward(self, x, edge_index):
         mu, logvar = self.encode(x, edge_index)
@@ -156,10 +160,11 @@ def load_and_preprocess_data(real_transactions_path, fake_addresses_path):
     return data, node_to_idx, fake_addresses
 
 
-def train_model(data, device, num_epochs=100, lr=0.001):
+def train_model(data, device, num_epochs=200, lr=0.0005):
 
     model = VGAE(in_channels=data.x.size(1), hidden_dim=32, out_channels=16).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     
     print(f"Model device: {next(model.parameters()).device}")
     print(f"Data x device: {data.x.device}")
@@ -175,9 +180,9 @@ def train_model(data, device, num_epochs=100, lr=0.001):
         # Training edges
         train_edges = data.train_pos_edge_index.to(device)
         neg_edge_index = negative_sampling(
-            edge_index=train_edges,
+            edge_index=torch.cat([train_edges, data.val_pos_edge_index], dim=1),
             num_nodes=data.num_nodes,
-            num_neg_samples=train_edges.size(1)).to(device)
+            num_neg_samples=train_edges.size(1) * 2).to(device)
 
         z, mu, logvar = model(x, train_edges)  # Use training edges
         
@@ -193,11 +198,14 @@ def train_model(data, device, num_epochs=100, lr=0.001):
         
         # Calculate losses
         bce_loss = F.binary_cross_entropy_with_logits(logits, labels)
-        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / data.num_nodes
+        out_channels = 16
+        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / (data.num_nodes * out_channels)
         loss = bce_loss + kl_loss
 
         # Gradient handling
         loss.backward()
+        grad_norms = [p.grad.norm().item() for p in model.parameters() if p.grad is not None]
+        print(f"Gradient norms: {np.mean(grad_norms):.4f}")
         clip_grad_norm_(model.parameters(), max_norm=2.0)  # Gradient clipping
         optimizer.step()
 
@@ -226,7 +234,10 @@ def train_model(data, device, num_epochs=100, lr=0.001):
                 torch.zeros_like(neg_logits)
             ])
             val_loss = F.binary_cross_entropy_with_logits(val_logits, val_labels)
+            scheduler.step(val_loss)
 
+
+        
         if loss < best_loss:
             best_loss = loss
             torch.save(model.state_dict(), 'best_model.pth')
@@ -235,8 +246,8 @@ def train_model(data, device, num_epochs=100, lr=0.001):
     
     return model
 
-def generate_fake_transactions(model, data, node_to_idx, fake_addresses, device, threshold=0.5):
-        # Convert edge_index to appropriate format (already dense tensor)
+def generate_fake_transactions(model, data, node_to_idx, fake_addresses, device, threshold=0.95):
+    # Convert edge_index to appropriate format (already dense tensor)
     edge_index = data.edge_index.cpu()
     real_edge_set = set(zip(edge_index[0].tolist(), edge_index[1].tolist()))  # Directly use dense format
     
