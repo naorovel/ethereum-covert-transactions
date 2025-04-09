@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,11 +5,6 @@ from pydantic import BaseModel
 import pandas as pd
 from json import loads, dumps
 import random
-
-#import sys
-#import os
-#sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from api.detection import run_detection_and_return_table
 
 app = FastAPI()
 
@@ -27,7 +21,7 @@ table_df = None
 graph_df = None
 random.seed(4523)
 unique_addr = []
-num_addr = 1000
+num_addr = 2000
 
 def get_unique_addr(num_addr=10):
     global graph_df, unique_addr
@@ -51,10 +45,15 @@ startup()
 def get_nodes_links_from_df(transactions_df):
     global unique_addr
     transactions_df = transactions_df[(transactions_df['source'].isin(unique_addr) | transactions_df['target'].isin(unique_addr))]
+    #transactions_df = transactions_df[(transactions_df['source'].isin(unique_addr))]
+
+    source_nodes = transactions_df['source'].tolist()
+    target_nodes = transactions_df['target'].tolist()
+    all_nodes = set(list(source_nodes + target_nodes))
     
     # Renaming columns 
     nodes = []
-    for node in unique_addr: 
+    for node in all_nodes: 
         nodes.append({'id': node})
     
     print(unique_addr)
@@ -67,7 +66,6 @@ def get_nodes_links_from_df(transactions_df):
                                                                }, axis=1)
     links = transactions_df["link"].values.tolist()
     return nodes, links
-
 
 @app.get("/get_table_transactions")
 async def get_table_transactions(): 
@@ -85,7 +83,6 @@ async def get_table_transactions():
     
     return parsed
 
-
 @app.get("/get_graph_transactions")
 async def get_graph_transactions(): 
     global graph_df
@@ -93,22 +90,6 @@ async def get_graph_transactions():
     print(len(links))
     print(len(nodes))
     return {'nodes': nodes, 'links': links}
-
-
-@app.get("/get_detected_transactions")
-async def get_detected_transactions(num_transactions:  int = 1000): 
-    detected_df = run_detection_and_return_table()
-    display_df = detected_df.head(num_transactions)
-
-    # Keep relevant columns
-    table_data = display_df[["source", "target", "type", "covert_generated", "is_covert"]]
-
-    # Convert to JSON and return
-    result = table_data.to_json(orient="records")
-    parsed = loads(result)
-    return parsed
-
-
 
 
 

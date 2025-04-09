@@ -5,7 +5,7 @@ import random
 import itertools
 import json
 
-num_transactions_display = 2000
+num_transactions_display = 5000
 
 ###### Creating graph
 
@@ -26,11 +26,11 @@ def combine_transactions():
     blocce_df["target"] = blocce_df["to_address"]
     print(len(blocce_df))
     
-    embedded_df = pd.read_csv("./src/data/embedded_transactions.csv")
+    embedded_df = pd.read_csv("./src/data/generated_transactions.csv")
     embedded_df["type"] = "generated"
     embedded_df["covert_generated"] = True
-    embedded_df["source"] = embedded_df["input_address"]
-    embedded_df["target"] = embedded_df["output_address"]
+    embedded_df["source"] = embedded_df["from_address"]
+    embedded_df["target"] = embedded_df["to_address"]
     print(len(embedded_df))
     
     txs_df = pd.concat([txs_df, blocce_df, embedded_df], ignore_index=True, axis=0)
@@ -122,43 +122,6 @@ def count_covert_transactions(G):
             non_covert += 1
             
     return covert, non_covert
-
-##############
-def run_detection_and_return_table():
-    combine_transactions()
-    transactions_df = pd.read_csv("src/data/all_transactions.csv")
-    display_transactions = transactions_df.sample(num_transactions_display, random_state=56)
-
-    transactions_df = display_transactions
-    unique_addr = transactions_df['source'].unique().tolist() + transactions_df['target'].unique().tolist()
-
-    nodes = [{'id': node} for node in unique_addr]
-
-    transactions_df["link"] = transactions_df.apply(lambda x: { 'source': x["source"],
-                                                                'target': x["target"],
-                                                                'covert_generated': x["covert_generated"],
-                                                                'type': x["type"],
-                                                                'covert': False}, axis=1)
-
-    links = transactions_df["link"].tolist()
-
-    G = nx.node_link_graph({'directed': True, 'multigraph': True, 'graph': {}, 'nodes': nodes, 'links': links})
-    G, _ = detect_covert_subgraphs(G)
-
-    # Add covert flags back to the original DataFrame
-    edge_covert_map = {}
-    for u, v, k, data in G.edges(keys=True, data=True):
-        edge_covert_map[(u, v, k)] = data.get('covert', False)
-
-    covert_flags = []
-    for i, row in transactions_df.iterrows():
-        key = (row["source"], row["target"], i)
-        covert_flags.append(edge_covert_map.get(key, False))
-
-    transactions_df["is_covert"] = covert_flags
-
-    return transactions_df[["source", "target", "type", "covert_generated", "is_covert"]]
-
 
 
 ####################### Main

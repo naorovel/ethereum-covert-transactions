@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 
-type SortableTableColumn<T> = TableColumn<T> & { sortable?: boolean }
-
-/*Imports and Component Resolution*/
-
 const UBadge = resolveComponent('UBadge')
 const UButton = resolveComponent('UButton')
 const UDropdownMenu = resolveComponent('UDropdownMenu')
@@ -16,19 +12,17 @@ type Transaction = {
   to_address: string
   value: number
   block_timestamp: string
-  is_covert: boolean
+  from_scam: boolean
+  to_scam: boolean
 }
 
-/*Data Fetching from FastAPI*/
-
-const API_URL = 'http://localhost:8000/get_detected_transactions?num_transactions=10000'
-
-/*Both are reactive, so the table auto-updates when either of them changes*/
+const API_URL = 'http://localhost:8000/get_table_transactions?num_transactions=1000'
 
 const searchTerm = ref('')
 const columnFilters = ref<Record<string, any>>({
   value: { min: null, max: null },
-  is_covert: 'all' // 'yes' | 'no' | 'all'
+  from_scam: 'all',
+  to_scam: 'all'
 })
 
 const sortColumn = ref<keyof Transaction | null>(null)
@@ -38,15 +32,14 @@ const filteredCount = computed(() => filteredData.value?.length || 0)
 const { data, status } = await useFetch<Transaction[]>(API_URL, {
   method: 'GET',
   headers: { 'Accept': '*/*' },
-  transform: (res: any) => res.map((item: any) => ({
+  transform: (res: any) => res.map(item => ({
     ...item,
     value: Number(item.value),
-    is_covert: Boolean(item.is_covert)
+    from_scam: item.from_scam === 1, // Convert to boolean
+    to_scam: item.to_scam === 1      // Convert to boolean
   })),
   lazy: true
 })
-
-/* This function filters and sorts the transaction data based on user input. */
 
 const filteredData = computed(() => {
   if (!data.value) return []
@@ -68,25 +61,14 @@ const filteredData = computed(() => {
       Number(columnFilters.value.value.max) * 1e6 : Infinity
     const valueMatch = value >= min && value <= max
 
-    // Covert filter
-
-    const covertFilter = columnFilters.value.is_covert
-    const covertMatch =
-      covertFilter === 'all'
-        ? true
-        : item.is_covert === (covertFilter === 'yes')
-
-    return searchMatch && valueMatch && covertMatch
-
-    /*Scam filters
+    // Scam filters
     const fromScamMatch = columnFilters.value.from_scam === 'all' ? true : 
       item.from_scam === (columnFilters.value.from_scam === 'yes')
       
     const toScamMatch = columnFilters.value.to_scam === 'all' ? true : 
       item.to_scam === (columnFilters.value.to_scam === 'yes')
 
-    return searchMatch && valueMatch && fromScamMatch && toScamMatch*/
-
+    return searchMatch && valueMatch && fromScamMatch && toScamMatch
   }).sort((a, b) => {
     if (!sortColumn.value) return 0
     const modifier = sortDirection.value === 'asc' ? 1 : -1
@@ -94,7 +76,6 @@ const filteredData = computed(() => {
   })
 })
 
- 
 const columns: TableColumn<Transaction>[] = [
   {
     accessorKey: 'transaction_index',
@@ -116,19 +97,13 @@ const columns: TableColumn<Transaction>[] = [
     header: 'To Address',
     sortable: true
   },
-  {
+    {
     accessorKey: 'value',
     header: 'Value (Millions of ETH)',
     sortable: true,
     format: (value) => `$${(value / 1e6).toLocaleString()}M`
   },
   {
-    accessorKey: 'is_covert',
-    header: 'Covert Transaction',
-    sortable: true,
-    format: (value) => Boolean(value) ? 'Yes' : 'No'
-  }
-  /*{
     accessorKey: 'from_scam',
     header: 'From Scam',
     sortable: true,
@@ -139,10 +114,8 @@ const columns: TableColumn<Transaction>[] = [
     header: 'To Scam',
     sortable: true,
     format: (value) => Boolean(value) ? 'Yes' : 'No'
-  }*/
+  }
 ]
-
-/* this function Handles the logic for sorting the table when the user clicks a column header.*/
 
 function toggleSort(column: keyof Transaction) {
   if (sortColumn.value === column) {
@@ -205,19 +178,10 @@ function toggleSort(column: keyof Transaction) {
         :loading="status === 'pending'"
         class="flex-1"
       >
-        <!-- Slot for formatting value -->
-        <template #value-data="{ value }">
-          <span class="font-mono">${{ (value / 1e6).toLocaleString() }}M</span>
-        </template>
-
-        <!-- Slot for formatting covert column -->
-        <template #is_covert-data="{ value }">
-          <UBadge :label="value ? 'Yes' : 'No'" :color="value ? 'red' : 'green'" />
-        </template>
-        <!-- Compact Slot Templates 
+        <!-- Compact Slot Templates -->
         <template #value-data="{ value }"><span class="font-mono">${{ (value / 1e6).toLocaleString() }}M</span></template>
         <template #from_scam-data="{ value }"><UBadge :label="value ? 'Yes' : 'No'" :color="value ? 'red' : 'green'"/></template>
-        <template #to_scam-data="{ value }"><UBadge :label="value ? 'Yes' : 'No'" :color="value ? 'red' : 'green'"/></template>  -->
+        <template #to_scam-data="{ value }"><UBadge :label="value ? 'Yes' : 'No'" :color="value ? 'red' : 'green'"/></template>
       </UTable>
     </UCard>
   </client-only>
