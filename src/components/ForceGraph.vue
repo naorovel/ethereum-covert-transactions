@@ -21,32 +21,47 @@
         </div> -->
 
         <!-- New filters -->
-        <div class="filter-group">
+        <!-- <div class="filter-group">
           <label>Detection Classification:</label>
           <select v-model="selectedCovert" multiple class="filter-select">
-            <option v-for="alg in allTypes" :key="alg" :value="alg">
+            <option v-for="alg in allCovert" :key="alg" :value="alg">
               {{ alg }}
             </option>
           </select>
         </div>
 
         <div class="filter-group">
-          <label>Generated Covert/Non-Covert:</label>
+          <label>Generated Covert:</label>
           <select v-model="selectedCovertGenerated" multiple class="filter-select">
-            <option v-for="src in allCovert" :key="src" :value="src">
+            <option v-for="src in allCovertGenerated" :key="src" :value="src">
               {{ src }}
             </option>
           </select>
-        </div>
+        </div> -->
 
         <div class="filter-group">
-          <label>Covert Transaction Types:</label>
+          <label>Transaction Types:</label>
           <select v-model="selectedTypes" multiple class="filter-select">
             <option v-for="type in allTypes" :key="type" :value="type">
               {{ type }}
             </option>
           </select>
         </div>
+      </div>
+      <div class="legend">
+        <h4>Detection Color Legend</h4>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #2a9d8f"></div>
+          <div class="legend-label">Non-covert Links</div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #e76f51"></div>
+          <div class="legend-label">Covert Links</div>
+        </div>
+        <!-- <div class="legend-item">
+          <div class="legend-color" style="background-color: #264653"></div>
+          <div class="legend-label">Other Links</div>
+        </div> -->
       </div>
 
       <div class="side-menu">
@@ -338,8 +353,8 @@ export default {
 
       // Initialize simulation
       this.simulation = this.d3.forceSimulation()
-        .force("link", this.d3.forceLink().id(d => d.id).distance(100))
-        .force("charge", this.d3.forceManyBody().strength(-100))
+        .force("link", this.d3.forceLink().id(d => d.id).distance(10))
+        .force("charge", this.d3.forceManyBody().strength(-10))
         .force("center", this.d3.forceCenter(width / 2, height / 2))
         .force("collision", this.d3.forceCollide().radius(5))
         .on("tick", () => this.tickHandler());
@@ -414,7 +429,7 @@ export default {
       // Update simulation forces
       this.simulation
         .force("link", this.d3.forceLink(this.processedLinks).id(d => d.id).distance(100))
-        .force("charge", this.d3.forceManyBody().strength(-10000));
+        .force("charge", this.d3.forceManyBody().strength(-100));
 
       // Update nodes
       const nodes = this.zoomGroup.selectAll(".node-group")
@@ -437,12 +452,12 @@ export default {
         .attr("r", 5)
         .attr("fill", "#264653");
 
-      nodeEnter.append("text")
-        .text(d => d.id)
-        .attr("dx", 8)
-        .attr("dy", 4)
-        .style("font-size", "10px")
-        .style("fill", "#264653");
+      // nodeEnter.append("text")
+      //   .text(d => d.id)
+      //   .attr("dx", 8)
+      //   .attr("dy", 4)
+      //   .style("font-size", "10px")
+      //   .style("fill", "#264653");
 
       // Merge nodes
       const nodeMerge = nodeEnter.merge(nodes)
@@ -462,7 +477,7 @@ export default {
       const linkEnter = links.enter()
         .append("line")
         .attr("stroke", d => this.getLinkColor(d))
-        .attr("stroke-width", 5)
+        .attr("stroke-width", 7)
         .style("opacity", 0)
         .on("mouseover", (event, d) => this.handleLinkHover(event, d))
         .on("click", (event, d) => this.handleLinkClick(event, d));
@@ -470,7 +485,7 @@ export default {
       links.merge(linkEnter)
         .transition()
         .duration(500)
-        .style("opacity", 0.7)
+        .style("opacity", 1)
         .attr("stroke", d => this.getLinkColor(d));
 
       // Restore positions and restart simulation
@@ -517,7 +532,23 @@ export default {
     },
 
     getLinkColor(link) {
-      return '#2a9d8f';
+      console.log(link.covert, link.covert_generated)
+      // if (link.covert === false && link.covert_generated === false) {
+      //   return '#264653'; // Dark blue for non-covert and non-generated 
+      // } else if (link.covert === false && link.covert_generated === true) {
+      //   return '#fffff'; // White for non-covert but generated
+      // } else if (link.covert === true && link.covert_generated === false) {
+      //   return '#2a9d8f'; // Teal for covert but not generated
+      // } else if (link.covert === true && link.covert_generated === true) {
+      //   return '#e76f51'; // Coral for covert and generated
+      // }
+      if (link.covert === false) {
+        return '#2a9d8f'; // teal
+      } else if (link.covert === true) {
+        return '#e76f51'; // Coral for covert and generated
+      } else {
+        return '#264653'; // Dark blue for non-covert and non-generated 
+      }
     }
     
   }
@@ -549,7 +580,7 @@ export default {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   font-size: 14px;
   z-index: 100;
-  max-width: 200px;
+  max-width: 400px;
   color: #264653;
 }
 
@@ -563,7 +594,7 @@ export default {
 }
 
 .side-menu {
-  width: 300px;
+  width: 400px;
   background: white;
   border-right: 1px solid #ccc;
   height: 100vh;
