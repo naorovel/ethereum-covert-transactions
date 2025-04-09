@@ -19,7 +19,6 @@ app.add_middleware(
         
 table_df = None
 graph_df = None
-random.seed(4523)
 unique_addr = []
 num_addr = 2000
 
@@ -29,6 +28,7 @@ def get_unique_addr(num_addr=10):
     print(len(unique_addr))
     # Remove duplicates 
     unique_addr = list(set(unique_addr))
+    random.seed(4523)
     unique_addr = random.sample(unique_addr, num_addr)
     
 
