@@ -5,7 +5,7 @@ import random
 import itertools
 import json
 
-num_transactions_display = 2000
+num_transactions_display = 5000
 
 ###### Creating graph
 
@@ -26,11 +26,11 @@ def combine_transactions():
     blocce_df["target"] = blocce_df["to_address"]
     print(len(blocce_df))
     
-    embedded_df = pd.read_csv("./src/data/embedded_transactions.csv")
+    embedded_df = pd.read_csv("./src/data/generated_transactions.csv")
     embedded_df["type"] = "generated"
     embedded_df["covert_generated"] = True
-    embedded_df["source"] = embedded_df["input_address"]
-    embedded_df["target"] = embedded_df["output_address"]
+    embedded_df["source"] = embedded_df["from_address"]
+    embedded_df["target"] = embedded_df["to_address"]
     print(len(embedded_df))
     
     txs_df = pd.concat([txs_df, blocce_df, embedded_df], ignore_index=True, axis=0)

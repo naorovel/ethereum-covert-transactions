@@ -19,7 +19,10 @@ type Node = {
 
 type Link = {
   source: string,
-  target: string
+  target: string,
+  covert: Boolean,
+  covert_generated: Boolean,
+  type: string
 }
 
 type GraphData = {
@@ -40,7 +43,10 @@ const { data, pending, error } = useFetch<GraphData>(API_URL, {
       nodes: res.nodes.map((node: Node) => ({ id: node.id })),
       links: res.links.map((link: Link) => ({
         source: link.source,
-        target: link.target
+        target: link.target,
+        covert: link.covert,
+        covert_generated: link.covert_generated,
+        type: link.type
       }))
     }
     }

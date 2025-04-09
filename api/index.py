@@ -21,7 +21,7 @@ table_df = None
 graph_df = None
 random.seed(4523)
 unique_addr = []
-num_addr = 1000
+num_addr = 2000
 
 def get_unique_addr(num_addr=10):
     global graph_df, unique_addr
@@ -45,10 +45,15 @@ startup()
 def get_nodes_links_from_df(transactions_df):
     global unique_addr
     transactions_df = transactions_df[(transactions_df['source'].isin(unique_addr) | transactions_df['target'].isin(unique_addr))]
+    #transactions_df = transactions_df[(transactions_df['source'].isin(unique_addr))]
+
+    source_nodes = transactions_df['source'].tolist()
+    target_nodes = transactions_df['target'].tolist()
+    all_nodes = set(list(source_nodes + target_nodes))
     
     # Renaming columns 
     nodes = []
-    for node in unique_addr: 
+    for node in all_nodes: 
         nodes.append({'id': node})
     
     print(unique_addr)
