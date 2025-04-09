@@ -141,70 +141,78 @@ def embed_fake_transactions(model, features, edge_index, address_map,
     # 5. Calculate probabilities
     #adj_probs = torch.sigmoid(z_combined @ z_combined.t())
     
-    # 6. Generate transactions
-    # Fake -> Real connections
-    for i in range(0, len(fake_indices), batch_size):
-        if new_count >= max_new: break
-        batch_fake = fake_indices[i:i+batch_size]
-        #probs = adj_probs[batch_fake, :n_real]
-        batch_z = z_combined[batch_fake,:]
-        probs = torch.sigmoid(batch_z @ z_combined.t())[:, :n_real]
-        top_real = select_context_nodes(probs, context_ratio, threshold)
-        
-        for fake_idx, real_indices in top_real:
-            for real_idx in real_indices:
-                if new_count >= max_new: break
-                actual_fake_node = batch_fake[fake_idx].item()
-                fake_transactions.append((
-                    fake_addresses[actual_fake_node - n_real],
-                    get_real_address(real_idx.item(), address_map),
-                    probs[fake_idx, real_idx].item()
-                ))
-                new_count += 1
-            else: continue
-            break
-
-    # Modified Real -> Fake connections
-    if new_count < max_new:
-        real_indices = torch.arange(n_real, device=device)
-        for i in range(0, n_real, batch_size):
-            if new_count >= max_new: break
-            batch_real = real_indices[i:i+batch_size]
-            #probs = adj_probs[batch_real, fake_indices]
-            batch_z = z_combined[batch_real,:]
-            probs = torch.sigmoid(batch_z @ z_combined.t())[:, :fake_indices]
-            top_fake = select_context_nodes(probs, context_ratio, threshold)
-            
-            for real_idx, fake_idxs in top_fake:
-                for fake_idx in fake_idxs:
-                    if new_count >= max_new: break
-                    actual_fake_node = fake_indices[fake_idx].item()
-                    fake_transactions.append((
-                        get_real_address(real_idx, address_map),
-                        fake_addresses[actual_fake_node - n_real],
-                        probs[real_idx, fake_idx].item()
-                    ))
-                    new_count += 1
-                else: continue
-                break
-
-    # Modified Fake <-> Fake connections
-    if new_count < max_new:
-        #fake_probs = adj_probs[fake_indices, :][:, fake_indices]
-        batch_z = z_combined[fake_indices,:]
-        probs = torch.sigmoid(batch_z @ z_combined.t())[:, :fake_indices]
-        fake_pairs = torch.nonzero(fake_probs > threshold)
-        for src, dst in fake_pairs:
-            if new_count >= max_new: break
-            fake_transactions.append((
-                fake_addresses[src.item()],
-                fake_addresses[dst.item()],
-                fake_probs[src, dst].item()
-            ))
-            new_count += 1
+     # 6. Enhanced transaction generation with diversity controls
+    fake_transactions = []
+    n_real = features.size(0)
+    device = features.device
+    new_count = 0
+    max_new = max(1, int(edge_index.size(1) * max_new_ratio))
     
-    return pd.DataFrame(fake_transactions,
-                      columns=['input_address', 'output_address', 'probability'])
+    # Create balanced connection types
+    connection_types = [
+        ('fake_to_real', fake_indices, torch.arange(n_real, device=device)),
+        ('real_to_fake', torch.arange(n_real, device=device), fake_indices),
+        ('fake_to_fake', fake_indices, fake_indices)
+    ]
+
+    for conn_type, src_nodes, dst_nodes in connection_types:
+        if new_count >= max_new: break
+        
+        # Batch process sources
+        for i in range(0, len(src_nodes), batch_size):
+            batch_src = src_nodes[i:i+batch_size]
+            
+            # Calculate probabilities for this batch
+            with torch.no_grad():
+                src_z = z_combined[batch_src]
+                dst_z = z_combined[dst_nodes]
+                probs = torch.sigmoid(src_z @ dst_z.t())
+            
+            # Adaptive thresholding per batch
+            batch_threshold = max(threshold, 
+                                torch.quantile(probs, 0.75).item())
+            
+            # Select diverse connections
+            for src_idx in range(len(batch_src)):
+                if new_count >= max_new: break
+                
+                # Get valid destinations with probability > threshold
+                valid_dsts = torch.where(probs[src_idx] > batch_threshold)[0]
+                
+                # Sample from valid destinations (prevents same-node dominance)
+                if len(valid_dsts) > 0:
+                    n_select = min(3, len(valid_dsts))  # Max 3 connections per node
+                    selected_dsts = valid_dsts[torch.randperm(len(valid_dsts))[:n_select]]
+                    
+                    for dst in selected_dsts:
+                        src_addr = fake_addresses[batch_src[src_idx].item() - n_real] \
+                                   if batch_src[src_idx] in fake_indices \
+                                   else idx_to_address[batch_src[src_idx].item()]
+                        
+                        dst_addr = fake_addresses[dst.item() - n_real] \
+                                  if dst in fake_indices \
+                                  else idx_to_address[dst.item()]
+                        
+                        fake_transactions.append((
+                            src_addr,
+                            dst_addr,
+                            probs[src_idx, dst].item()
+                        ))
+                        new_count += 1
+                        if new_count >= max_new: break
+
+    # Convert to DataFrame with original schema
+    result_df = pd.DataFrame(fake_transactions,
+                           columns=['from_address', 'to_address', 'probability'])
+    
+    # Enforce transaction diversity constraints
+    unique_from = result_df['from_address'].nunique()
+    unique_to = result_df['to_address'].nunique()
+    
+    print(f"Generated {len(result_df)} transactions with "
+          f"{unique_from} unique sources and {unique_to} unique destinations")
+    
+    return result_df[['from_address', 'to_address']]
 
 # Helper functions
 def select_context_nodes(probs, context_ratio, threshold):
@@ -318,10 +326,11 @@ if __name__ == "__main__":
         address_map=address_to_idx,
         fake_addresses=fake_addresses,
         threshold=0.65,
-        context_ratio=0.2,
+        context_ratio=0.4,
         batch_size=1000,
         max_new_ratio=0.1
     )
+
 
     # Save results
     covert_df.to_csv("src/data/embedded_transactions.csv", index=False)

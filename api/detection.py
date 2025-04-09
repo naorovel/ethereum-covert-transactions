@@ -5,7 +5,7 @@ import random
 import itertools
 import json
 
-num_transactions_display = 1000
+num_transactions_display = 2000
 
 ###### Creating graph
 

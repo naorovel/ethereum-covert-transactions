@@ -24,9 +24,9 @@ unique_addr = []
 num_addr = 1000
 
 def get_unique_addr(num_addr=10):
-    global table_df, unique_addr
-    unique_addr = table_df['from_address'].unique().tolist()
-    
+    global graph_df, unique_addr
+    unique_addr = graph_df['source'].unique().tolist()
+    print(len(unique_addr))
     # Remove duplicates 
     unique_addr = list(set(unique_addr))
     unique_addr = random.sample(unique_addr, num_addr)
@@ -44,7 +44,7 @@ startup()
 ## UTIL methods
 def get_nodes_links_from_df(transactions_df):
     global unique_addr
-    transactions_df = transactions_df[transactions_df['source'].isin(unique_addr)]
+    transactions_df = transactions_df[(transactions_df['source'].isin(unique_addr) | transactions_df['target'].isin(unique_addr))]
     
     # Renaming columns 
     nodes = []
@@ -82,6 +82,8 @@ async def get_table_transactions():
 async def get_graph_transactions(): 
     global graph_df
     nodes, links = get_nodes_links_from_df(graph_df)
+    print(len(links))
+    print(len(nodes))
     return {'nodes': nodes, 'links': links}
 
 
