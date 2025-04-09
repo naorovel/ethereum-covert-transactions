@@ -30,11 +30,11 @@
       <div class="color-legend">
         <div class="legend-item">
           <span class="legend-color" style="background-color: #2a9d8f"></span>
-          Covert matches Generated
+            Correctly classified
         </div>
         <div class="legend-item">
           <span class="legend-color" style="background-color: #e76f51"></span>
-          Real transactions
+            Incorrectly classified
         </div>
       </div>
 
@@ -159,8 +159,8 @@ export default {
       this.simulation = this.d3.forceSimulation()
         .force('charge', this.d3.forceManyBody().strength(-0.0))
         .force('center', this.d3.forceCenter(width / 2, height / 2))
-        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(3))
-        .force('collision', this.d3.forceCollide().radius(2))
+        .force('link', this.d3.forceLink(this.processedLinks).id(d => d.id).distance(0.0001))
+        .force('collision', this.d3.forceCollide().radius(0.0001))
 
       // Links
       const link = this.zoomGroup.append('g')
@@ -204,7 +204,7 @@ export default {
     dragHandler() {
       return this.d3.drag()
         .on('start', event => {
-          if (!event.active) this.simulation.alphaTarget(0.3).restart()
+          // if (!event.active) this.simulation.alphaTarget(0.3).restart()
           event.subject.fx = event.x
           event.subject.fy = event.y
         })
@@ -212,7 +212,7 @@ export default {
           const [x, y] = this.d3.pointer(event, this.zoomGroup.node())
           event.subject.fx = x
           event.subject.fy = y
-          this.simulation.alpha(0.5).restart()
+          // this.simulation.alpha(0.5).restart()
         })
         .on('end', event => {
           if (!event.active) this.simulation.alphaTarget(0)
