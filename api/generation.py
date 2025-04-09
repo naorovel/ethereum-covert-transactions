@@ -1,327 +1,342 @@
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 import pandas as pd
+from torch_geometric.data import Data
+from torch_geometric.nn import GCNConv
+from torch_geometric.utils import negative_sampling, train_test_split_edges
 from sklearn.preprocessing import StandardScaler
-import csv
+from torch.nn.utils import clip_grad_norm_
+import math
 
-class SparseGCNLayer(nn.Module):
-    """GCN layer optimized for sparse adjacency matrices"""
-    def __init__(self, in_features, out_features):
-        super().__init__()
-        self.linear = nn.Linear(in_features, out_features)
-    
-    def forward(self, x, adj_sparse):
-        # adj_sparse: sparse tensor [n_nodes, n_nodes]
-        # x: dense tensor [n_nodes, in_features]
-        x = torch.sparse.mm(adj_sparse, x)  # Sparse-dense matrix multiplication
-        return self.linear(x)
 
-class SparseEncoder(nn.Module):
-    """Encoder for sparse graph inputs"""
-    def __init__(self, in_features, hidden_dim, latent_dim):
-        super().__init__()
-        self.gcn_mu = SparseGCNLayer(in_features, latent_dim)
-        self.gcn_logvar = SparseGCNLayer(in_features, latent_dim)
-        self.logvar_clamp_min = -10  # More conservative clamping for stability
-        self.logvar_clamp_max = 3
-    
-    def forward(self, x, adj_sparse):
-        mu = self.gcn_mu(x, adj_sparse)
-        logvar = self.gcn_logvar(x, adj_sparse)
-        return mu, torch.clamp(logvar, self.logvar_clamp_min, self.logvar_clamp_max)
+class VGAE(nn.Module):
+    def __init__(self, in_channels, hidden_dim, out_channels):
+        super(VGAE, self).__init__()
+        # Encoder layers
+        self.out_channels = out_channels  # Add this line
+        self.conv1 = GCNConv(in_channels, hidden_dim)
+        self.conv_mu = GCNConv(hidden_dim, out_channels)
+        self.conv_logvar = GCNConv(hidden_dim, out_channels)
+        
+        # Initialize weights properly
+        nn.init.normal_(self.conv_mu.lin.weight, std=0.01)
+        nn.init.normal_(self.conv_logvar.lin.weight, std=0.01)
 
-class SparseDecoder(nn.Module):
-    """Decoder with edge sampling for large graphs"""
-    def forward(self, z, edge_index):
-        # Calculate logits only for sampled edges
-        rows, cols = edge_index
-        z_rows = z[rows]
-        z_cols = z[cols]
-        return torch.sum(z_rows * z_cols, dim=1)  # Inner product for sampled edges
+    def encode(self, x, edge_index):
+        # mu = self.conv_mu(x, edge_index)
+        # # mu = F.relu(mu)
+        # logvar = self.conv_logvar(x, edge_index)
+        # logvar = F.relu(logvar)
+        x = F.relu(self.conv1(x, edge_index))  # Activation only here
+        return self.conv_mu(x, edge_index), self.conv_logvar(x, edge_index)
+        # return mu, logvar
 
-class SparseVGAE(nn.Module):
-    """Sparse Variational Graph Autoencoder"""
-    def __init__(self, in_features, hidden_dim, latent_dim):
-        super().__init__()
-        self.encoder = SparseEncoder(in_features, hidden_dim, latent_dim)
-        self.decoder = SparseDecoder()
-    
     def reparameterize(self, mu, logvar):
         if self.training:
             std = torch.exp(0.5 * logvar)
             eps = torch.randn_like(std)
-            return mu + eps * std
-        return mu
-    
-    def forward(self, x, adj_sparse, edge_index):
-        mu, logvar = self.encoder(x, adj_sparse)
+            return eps.mul(std).add_(mu)
+        else:
+            return mu
+
+    def decode(self, z, edge_index):
+        src, dst = edge_index
+        logits = (z[src] * z[dst]).sum(dim=1)
+        return logits/math.sqrt(self.out_channels)
+
+    def forward(self, x, edge_index):
+        mu, logvar = self.encode(x, edge_index)
         z = self.reparameterize(mu, logvar)
-        return self.decoder(z, edge_index), mu, logvar
+        return z, mu, logvar
 
-def sparse_loss(recon_logits, edge_label, mu, logvar, neg_samples=1):
-    # Negative sampling loss implementation
-    pos_loss = F.binary_cross_entropy_with_logits(
-        recon_logits, edge_label, reduction='sum'
-    )
-    
-    # KL divergence (same as before)
-    kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    
-    return pos_loss + kl_loss
+def load_and_preprocess_data(real_transactions_path, fake_addresses_path):
+    # Load data
+    real_transactions = pd.read_csv(real_transactions_path)
+    fake_addresses = pd.read_csv(fake_addresses_path, sep=" ")['address'].unique()
 
-def create_sparse_adjacency(df):
-    # Create sparse adjacency matrix from transaction data
-    all_nodes = pd.concat([df['from_address'], df['to_address']]).unique()
-    node_map = {n: i for i, n in enumerate(all_nodes)}
-    
-    edge_list = []
-    for _, row in df.iterrows():
-        src = node_map[row['from_address']]
-        dst = node_map[row['to_address']]
-        edge_list.append([src, dst])
-    
-    edge_index = torch.tensor(edge_list, dtype=torch.long).t()
-    return edge_index, len(all_nodes)
+    # Create node mapping
+    real_nodes = pd.unique(real_transactions[['from_address', 'to_address']].values.ravel('K'))
+    all_nodes = np.concatenate([real_nodes, fake_addresses])
+    node_to_idx = {node: np.uint32(idx) for idx, node in enumerate(all_nodes)}
+    num_nodes = len(all_nodes)
 
-def prepare_features(edge_index, n_nodes):
-    # Create degree-based features
-    in_degree = torch.zeros(n_nodes, dtype=torch.float32)
-    out_degree = torch.zeros(n_nodes, dtype=torch.float32)
-    
-    src, dst = edge_index
-    out_degree = torch.bincount(src, minlength=n_nodes).float()
-    in_degree = torch.bincount(dst, minlength=n_nodes).float()
-    
-    features = torch.stack([in_degree, out_degree], dim=1)
-    features = StandardScaler().fit_transform(features.numpy())
-    return torch.tensor(features, dtype=torch.float32)  # Add this conversion
-    
-def edge_masking(edge_index, mask_rate=0.3):
-    # Randomly mask edges while maintaining direction
-    n_edges = edge_index.size(1)
-    mask = torch.rand(n_edges) > mask_rate
-    return edge_index[:, mask], edge_index[:, ~mask]
+    # Create edge index (keep dense for splitting)
+    edge_pairs = real_transactions[['from_address', 'to_address']].values
+    edges = [(node_to_idx[src], node_to_idx[dst]) for src, dst in edge_pairs]
+    edge_index = torch.tensor(edges, dtype=torch.int32).t().contiguous()
 
-def embed_fake_transactions(model, features, edge_index, address_map,
-                           fake_addresses, threshold=0.7, 
-                           context_ratio=0.3, batch_size=5000,
-                           max_new_ratio=0.1):  # Added 10% cap parameter
-    """
-    Embeds fake transactions (max 10% of original graph size)
-    """
-    fake_transactions = []
-    n_real = features.size(0)
-    device = features.device
-    feat_dim = model.encoder.gcn_mu.linear.in_features
+    # Create node features
+    in_degree = np.zeros(num_nodes, dtype=np.float32)
+    out_degree = np.zeros(num_nodes, dtype=np.float32)
+    for src, dst in edge_pairs:
+        out_degree[node_to_idx[src]] += 1
+        in_degree[node_to_idx[dst]] += 1
+
+    # Normalize features
+    X = np.stack([in_degree, out_degree], axis=1)
+    X = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-8)
+    X = torch.tensor(X, dtype=torch.float)
+
+    # Create Data object (keep on CPU for splitting)
+    data = Data(x=X, edge_index=edge_index)
+    data.num_nodes = num_nodes
+
+    # Convert to dense CPU tensor for splitting
+    row, col = data.edge_index.cpu()
+
+
+    # For directed graph
+    unique_pairs = torch.unique(data.edge_index, dim=1)
+    row, col = unique_pairs[0], unique_pairs[1]
+
+    unique_edges = torch.unique(edge_index, dim=1)
+    data.edge_index = unique_edges
+
+    # Split edges
+    val_ratio = 0.15
+    test_ratio = 0.05
+    n_v = int(val_ratio * row.size(0))
+    n_t = int(test_ratio * row.size(0))
     
-    # Calculate 10% of original transaction count
-    original_edge_count = edge_index.size(1)
-    max_new = max(1, int(original_edge_count * max_new_ratio))  # At least 1 transaction
-    new_count = 0
+    perm = torch.randperm(row.size(0))
+    row, col = row[perm], col[perm]
+
+    # Split indices
+    test_idx = perm[:n_t]
+    val_idx = perm[n_t:n_t + n_v]
+    train_idx = perm[n_t + n_v:]
+
+    # Store splits
+    # data.train_pos_edge_index = torch.stack([row[train_idx], col[train_idx]], dim=0)
+    # data.val_pos_edge_index = torch.stack([row[val_idx], col[val_idx]], dim=0)
+    # data.test_pos_edge_index = torch.stack([row[test_idx], col[test_idx]], dim=0)
+
+    # Convert to sparse and move to device AFTER splitting
+    # data.edge_index = data.edge_index.to_sparse()
+    # data = data.to(device)
     
-    # 2. Generate fake features matching original feature space
-    fake_features = torch.randn(len(fake_addresses), feat_dim, device=device) * 0.1
-    fake_indices = torch.arange(n_real, n_real + len(fake_addresses), device=device)
+    data.train_pos_edge_index = torch.stack([row[train_idx], col[train_idx]], dim=0)
+    data.val_pos_edge_index = torch.stack([row[val_idx], col[val_idx]], dim=0)
+    data.test_pos_edge_index = torch.stack([row[test_idx], col[test_idx]], dim=0)
     
-    # 3. Create extended graph with isolated fake nodes
-    combined_features = torch.cat([features, fake_features], dim=0)
+    data.full_edge_index = data.edge_index.to_sparse().to(device)
+    data.edge_index = data.train_pos_edge_index  # Use dense edges for training
+
+    # Move ALL tensors to device after splitting
+    data = data.to(device)
+    data.train_pos_edge_index = data.train_pos_edge_index.to(device)
+    data.val_pos_edge_index = data.val_pos_edge_index.to(device)
+    data.test_pos_edge_index = data.test_pos_edge_index.to(device)
+    data.full_edge_index = data.full_edge_index.to(device)
+
+    # New validation checks for edge splits
+    def _verify_split(edges, original_edges):
+        edge_set = set(zip(edges[0].cpu().numpy(), edges[1].cpu().numpy()))
+        original_set = set(zip(original_edges[0].cpu().numpy(), original_edges[1].cpu().numpy()))
+        return len(edge_set - original_set) == 0  # No new edges introduced
+
+    # Verify no overlap between splits
+    train_set = set(zip(data.train_pos_edge_index[0].tolist(), data.train_pos_edge_index[1].tolist()))
+    val_set = set(zip(data.val_pos_edge_index[0].tolist(), data.val_pos_edge_index[1].tolist()))
+    test_set = set(zip(data.test_pos_edge_index[0].tolist(), data.test_pos_edge_index[1].tolist()))
+
+    assert len(train_set & val_set) == 0, "Train-Val overlap detected"
+    assert len(train_set & test_set) == 0, "Train-Test overlap detected"
+    assert len(val_set & test_set) == 0, "Val-Test overlap detected"
+
+    # Verify all edges are from original set
+    original_edges = set(zip(row.tolist(), col.tolist()))
+    assert train_set.issubset(original_edges), "Train contains new edges"
+    assert val_set.issubset(original_edges), "Val contains new edges"
+    assert test_set.issubset(original_edges), "Test contains new edges"
+
+    # Verify coverage
+    combined = train_set | val_set | test_set
+    assert len(combined) == len(original_edges), f"Missing {len(original_edges)-len(combined)} edges"
+
+    return data, node_to_idx, fake_addresses
+
+
+def train_model(data, device, num_epochs=200, lr=0.0005):
+
+    model = VGAE(in_channels=data.x.size(1), hidden_dim=32, out_channels=16).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     
-    # Create extended adjacency (original edges + zero-padded for fake nodes)
-    extended_adj = torch.sparse_coo_tensor(
-        edge_index,
-        torch.ones(edge_index.size(1), dtype=torch.float32, device=device),
-        (combined_features.size(0), combined_features.size(0)))
+    print(f"Model device: {next(model.parameters()).device}")
+    print(f"Data x device: {data.x.device}")
+    print(f"Train edges device: {data.train_pos_edge_index.device}")
     
-    # 4. Generate combined embeddings
-    with torch.no_grad():
-        mu_combined, logvar_combined = model.encoder(combined_features, extended_adj)
-        z_combined = model.reparameterize(mu_combined, logvar_combined)
+    x = data.x.to(device)
     
-    # 5. Calculate probabilities
-    #adj_probs = torch.sigmoid(z_combined @ z_combined.t())
-    
-    # 6. Generate transactions
-    # Fake -> Real connections
-    for i in range(0, len(fake_indices), batch_size):
-        if new_count >= max_new: break
-        batch_fake = fake_indices[i:i+batch_size]
-        #probs = adj_probs[batch_fake, :n_real]
-        batch_z = z_combined[batch_fake,:]
-        probs = torch.sigmoid(batch_z @ z_combined.t())[:, :n_real]
-        top_real = select_context_nodes(probs, context_ratio, threshold)
+    best_loss = float('inf')
+    for epoch in range(num_epochs):
+        model.train()
+        optimizer.zero_grad()
+
+        # Training edges
+        train_edges = data.train_pos_edge_index.to(device)
+        neg_edge_index = negative_sampling(
+            edge_index=torch.cat([train_edges, data.val_pos_edge_index], dim=1),
+            num_nodes=data.num_nodes,
+            num_neg_samples=train_edges.size(1) * 2).to(device)
+
+        z, mu, logvar = model(x, train_edges)  # Use training edges
         
-        for fake_idx, real_indices in top_real:
-            for real_idx in real_indices:
-                if new_count >= max_new: break
-                actual_fake_node = batch_fake[fake_idx].item()
-                fake_transactions.append((
-                    fake_addresses[actual_fake_node - n_real],
-                    get_real_address(real_idx.item(), address_map),
-                    probs[fake_idx, real_idx].item()
-                ))
-                new_count += 1
-            else: continue
-            break
+        # Calculate loss for positive and negative edges
+        pos_logits = model.decode(z, data.train_pos_edge_index.to(device))
+        neg_logits = model.decode(z, neg_edge_index.to(device))
+        
+        pos_labels = torch.ones(pos_logits.size(0), device=device)
+        neg_labels = torch.zeros(neg_logits.size(0), device=device)
+        
+        logits = torch.cat([pos_logits, neg_logits], dim=0)
+        labels = torch.cat([pos_labels, neg_labels], dim=0)
+        
+        # Calculate losses
+        bce_loss = F.binary_cross_entropy_with_logits(logits, labels)
+        out_channels = 16
+        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / (data.num_nodes * out_channels)
+        loss = bce_loss + kl_loss
 
-    # Modified Real -> Fake connections
-    if new_count < max_new:
-        real_indices = torch.arange(n_real, device=device)
-        for i in range(0, n_real, batch_size):
-            if new_count >= max_new: break
-            batch_real = real_indices[i:i+batch_size]
-            #probs = adj_probs[batch_real, fake_indices]
-            batch_z = z_combined[batch_real,:]
-            probs = torch.sigmoid(batch_z @ z_combined.t())[:, :fake_indices]
-            top_fake = select_context_nodes(probs, context_ratio, threshold)
+        # Gradient handling
+        loss.backward()
+        grad_norms = [p.grad.norm().item() for p in model.parameters() if p.grad is not None]
+        print(f"Gradient norms: {np.mean(grad_norms):.4f}")
+        clip_grad_norm_(model.parameters(), max_norm=2.0)  # Gradient clipping
+        optimizer.step()
+
+        # Validation
+        model.eval()
+        with torch.no_grad():
+            # Use training edges for encoding
+            z_val, mu_val, logvar_val = model(x, train_edges)
             
-            for real_idx, fake_idxs in top_fake:
-                for fake_idx in fake_idxs:
-                    if new_count >= max_new: break
-                    actual_fake_node = fake_indices[fake_idx].item()
-                    fake_transactions.append((
-                        get_real_address(real_idx, address_map),
-                        fake_addresses[actual_fake_node - n_real],
-                        probs[real_idx, fake_idx].item()
-                    ))
-                    new_count += 1
-                else: continue
-                break
+            # Positive edges: data.val_pos_edge_index
+            val_edges = data.val_pos_edge_index.to(device)
+            pos_logits = model.decode(z_val, data.val_pos_edge_index)
+            
+            # Sample negative edges for validation (not in training or validation)
+            val_neg_edges = negative_sampling(
+                edge_index=torch.cat([train_edges, data.val_pos_edge_index], dim=1),
+                num_nodes=data.num_nodes,
+                num_neg_samples=data.val_pos_edge_index.size(1))
+            
+            neg_logits = model.decode(z_val, val_neg_edges)
+            
+            # Combine and compute loss
+            val_logits = torch.cat([pos_logits, neg_logits])
+            val_labels = torch.cat([
+                torch.ones_like(pos_logits),
+                torch.zeros_like(neg_logits)
+            ])
+            val_loss = F.binary_cross_entropy_with_logits(val_logits, val_labels)
+            scheduler.step(val_loss)
 
-    # Modified Fake <-> Fake connections
-    if new_count < max_new:
-        #fake_probs = adj_probs[fake_indices, :][:, fake_indices]
-        batch_z = z_combined[fake_indices,:]
-        probs = torch.sigmoid(batch_z @ z_combined.t())[:, :fake_indices]
-        fake_pairs = torch.nonzero(fake_probs > threshold)
-        for src, dst in fake_pairs:
-            if new_count >= max_new: break
-            fake_transactions.append((
-                fake_addresses[src.item()],
-                fake_addresses[dst.item()],
-                fake_probs[src, dst].item()
-            ))
-            new_count += 1
+
+        
+        if loss < best_loss:
+            best_loss = loss
+            torch.save(model.state_dict(), 'best_model.pth')
+
+        print(f'Epoch {epoch+1}, Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}')
     
-    return pd.DataFrame(fake_transactions,
-                      columns=['input_address', 'output_address', 'probability'])
+    return model
 
-# Helper functions
-def select_context_nodes(probs, context_ratio, threshold):
-    """Select contextually relevant nodes using adaptive thresholding"""
-    sorted_probs, indices = torch.sort(probs, descending=True)
-    n_select = max(int(probs.size(1) * context_ratio), 1)
-    mask = (sorted_probs > threshold) & (indices < sorted_probs.size(1))
-    return [(idx, indices[idx][mask[idx]]) for idx in range(probs.size(0))]
-
-def get_real_address(idx, address_map):
-    return next(k for k, v in address_map.items() if v == idx)
-
+def generate_fake_transactions(model, data, node_to_idx, fake_addresses, device, threshold=0.95):
+    # Convert edge_index to appropriate format (already dense tensor)
+    edge_index = data.edge_index.cpu()
+    real_edge_set = set(zip(edge_index[0].tolist(), edge_index[1].tolist()))  # Directly use dense format
     
-def generate_from_input(model, features, adj_sparse, address_to_idx):
-    """Generate transactions conditioned on input graph"""
     model.eval()
     with torch.no_grad():
-        adj_logits, mu, logvar = model(features, adj_sparse)
-        adj_probs = torch.sigmoid(adj_logits)
-    return adj_probs
-
-def batched_generation(z, batch_size=1000):
-    probs = []
-    for i in range(0, z.size(0), batch_size):
-        batch = z[i:i+batch_size]
-        probs.append(torch.sigmoid(batch @ z.t()))
-    return torch.cat(probs)
-
-def create_address_mapping(df):
-    """Create and save address mapping from transaction data"""
-    all_addresses = pd.concat([df['from_address'], df['to_address']]).unique()
-    mapping = {addr: idx for idx, addr in enumerate(sorted(all_addresses))}
+        z, _, _ = model(data.x.to(device), data.train_pos_edge_index.to(device))
     
-    # Save for reproducibility
-    pd.Series(mapping).to_csv("src/data/address_mapping.csv")
-    return mapping
+    fake_indices = [node_to_idx[addr] for addr in fake_addresses]
+    real_indices = list(set(range(data.num_nodes)) - set(fake_indices))
+    
+    # Generate potential fake transactions
+    fake_edges = []
+    
+    # Process in chunks to avoid memory issues
+    chunk_size = 1000
+    for i in range(0, len(fake_indices), chunk_size):
+        print(f"Processing chunk {i // chunk_size + 1}/{math.ceil(len(fake_indices) / chunk_size)}")
+        
+        chunk = fake_indices[i:i+chunk_size]
+        
+        # Convert indices to tensors on correct device
+        fake_tensor = torch.tensor(chunk, device=device, dtype=torch.long)
+        real_tensor = torch.tensor(real_indices, device=device, dtype=torch.long)
+        
+        # Calculate outgoing probabilities
+        z_fake = z[fake_tensor]
+        z_real = z[real_tensor]
+        logits_out = torch.mm(z_fake, z_real.t())
+        probs_out = torch.sigmoid(logits_out)
+        
+        # Find valid outgoing connections
+        mask_out = probs_out > threshold
+        src_ids, dst_ids = torch.where(mask_out)
+        
+        for src, dst in zip(src_ids, dst_ids):
+            fake_idx = chunk[src.item()]
+            real_idx = real_indices[dst.item()]
+            if (fake_idx, real_idx) not in real_edge_set:
+                fake_edges.append((fake_idx, real_idx))
+        
+        # Calculate incoming probabilities
+        logits_in = torch.mm(z_real, z_fake.t())
+        probs_in = torch.sigmoid(logits_in)
+        
+        # Find valid incoming connections
+        mask_in = probs_in > threshold
+        src_ids, dst_ids = torch.where(mask_in)
+        
+        for src, dst in zip(src_ids, dst_ids):
+            real_idx = real_indices[src.item()]
+            fake_idx = chunk[dst.item()]
+            if (real_idx, fake_idx) not in real_edge_set:
+                fake_edges.append((real_idx, fake_idx))
+    
+    # Convert indices to addresses
+    idx_to_node = {v: k for k, v in node_to_idx.items()}
+    fake_transactions = []
+    for src_idx, dst_idx in fake_edges:
+        src = idx_to_node[src_idx]
+        dst = idx_to_node[dst_idx]
+        fake_transactions.append({'from_address': src, 'to_address': dst})
+    
+    return pd.DataFrame(fake_transactions)
 
 # Example usage
 if __name__ == "__main__":
-    # Load and prepare data
-        
-    df = pd.read_csv("src/data/transactions.csv")
-    
-    original_edge_idx, n_nodes = create_sparse_adjacency(df)
-    original_features = prepare_features(original_edge_idx, n_nodes)
-    original_mapping = create_address_mapping(df)
-    
-    address_to_idx = create_address_mapping(df)
-    
-    edge_index, n_nodes = create_sparse_adjacency(df)
-    features = prepare_features(edge_index, n_nodes)
-    
-    # Model parameters
-    feat_dim = features.shape[1]
-    hidden_dim = 16
-    latent_dim = 8
-    epochs = 200
-    
-    # Initialize model and optimizer
-    model = SparseVGAE(feat_dim, hidden_dim, latent_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    
-    # Training loop
-    for epoch in range(epochs):
-        model.train()
-        
-        # Edge masking
-        visible_edges, masked_edges = edge_masking(edge_index, mask_rate=0.3)
-        
-        # Convert to sparse format for encoder
-        adj_sparse = torch.sparse_coo_tensor(
-            visible_edges, 
-            torch.ones(visible_edges.size(1)),
-            (n_nodes, n_nodes)
-        )
-        
-        # Forward pass
-        logits, mu, logvar = model(
-            features, 
-            adj_sparse,
-            edge_index  # All edges for reconstruction
-        )
-        
-        # Create labels: 1 for real edges, 0 for negative samples
-        pos_labels = torch.ones(edge_index.size(1))
-        
-        # Calculate loss
-        loss = sparse_loss(logits, pos_labels, mu, logvar)
-        
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)  # Gradient clipping
-        optimizer.step()
-        
-        if epoch % 20 == 0:
-            print(f"Epoch {epoch:3d} | Loss: {loss.item():.2f}")
-            
-    address_mapping = pd.read_csv("src/data/address_mapping.csv", index_col=0)
-    address_to_idx = address_mapping['0'].to_dict()
-    idx_to_address = {v: k for k, v in address_to_idx.items()}
+    print(torch.cuda.current_device())
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    with open("src/data/fakeAddresses_unique.txt") as f:
-        fake_addresses = [line.strip() for line in f]
-
-    # Generate covert transactions
-    covert_df = embed_fake_transactions(
-        model=model,
-        features=original_features,
-        edge_index=original_edge_idx,
-        address_map=address_to_idx,
-        fake_addresses=fake_addresses,
-        threshold=0.65,
-        context_ratio=0.2,
-        batch_size=1000,
-        max_new_ratio=0.1
+    # Load and preprocess data
+    data, node_to_idx, fake_addresses = load_and_preprocess_data(
+        'src/data/transactions.csv',
+        'src/data/fakeAddresses_unique.txt'
     )
+    
+    # Train model
+    trained_model = train_model(data, device)
 
+    torch.cuda.empty_cache()
+    
+    # Generate fake transactions
+    fake_df = generate_fake_transactions(
+        trained_model,
+        data,
+        node_to_idx,
+        fake_addresses,
+        device,
+        threshold=0.7  # Adjust based on validation results
+    )
+    
     # Save results
-    covert_df.to_csv("src/data/embedded_transactions.csv", index=False)
+    fake_df.to_csv('src/data/generated_transactions.csv', index=False)
