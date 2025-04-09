@@ -1,9 +1,15 @@
+
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 from json import loads, dumps
+
+#import sys
+#import os
+#sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from api.detection import run_detection_and_return_table
 
 app = FastAPI()
 
@@ -53,6 +59,7 @@ class QueryRequest(BaseModel):
 #     app.state.blocce_fund_txs_idx = 0
 #     app.state.blocce_covert_txs_idx = 0
 
+
 @app.get("/api")
 def hello_world():
     return {"message": "Hello World", "api": "Python"}
@@ -68,6 +75,12 @@ async def get_transactions(num_transactions: int):
     # Put data processing here...
     result = display_transactions.to_csv()
     return result
+
+
+@app.get("/get_detected_transactions")
+async def get_detected_transactions():
+    df = run_detection_and_return_table()
+    return loads(df.to_json(orient="records"))
 
 @app.get("/get_table_transactions")
 async def get_table_transactions(num_transactions: int): 
@@ -137,6 +150,23 @@ def inject_normal_transactions():
 @app.get("/detect_and_remove_covert_transactions")
 def detect_and_remove_covert_transactions():
     return True 
+
+
+
+
+
+@app.get("/get_detected_transactions")
+async def get_detected_transactions(num_transactions: int):
+    detected_df = run_detection_and_return_table()
+    display_df = detected_df.head(num_transactions)
+
+    # Keep relevant columns
+    table_data = display_df[["source", "target", "type", "covert_generated", "is_covert"]]
+
+    # Convert to JSON and return
+    result = table_data.to_json(orient="records")
+    parsed = loads(result)
+    return parsed
 
 
 
