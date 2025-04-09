@@ -36,3 +36,5 @@ torchvision-0.19.0+rocm6.3.4.gitfab84886-cp312-cp312-linux_x86_64.whl
 *.0
 *.1
 /runs
+best_model.pth
+src/data/generated_transactions.csv

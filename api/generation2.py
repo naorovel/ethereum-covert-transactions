@@ -1,3 +1,4 @@
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -105,13 +106,27 @@ def load_and_preprocess_data(real_transactions_path, fake_addresses_path):
     train_idx = perm[n_t + n_v:]
 
     # Store splits
+    # data.train_pos_edge_index = torch.stack([row[train_idx], col[train_idx]], dim=0)
+    # data.val_pos_edge_index = torch.stack([row[val_idx], col[val_idx]], dim=0)
+    # data.test_pos_edge_index = torch.stack([row[test_idx], col[test_idx]], dim=0)
+
+    # Convert to sparse and move to device AFTER splitting
+    # data.edge_index = data.edge_index.to_sparse()
+    # data = data.to(device)
+    
     data.train_pos_edge_index = torch.stack([row[train_idx], col[train_idx]], dim=0)
     data.val_pos_edge_index = torch.stack([row[val_idx], col[val_idx]], dim=0)
     data.test_pos_edge_index = torch.stack([row[test_idx], col[test_idx]], dim=0)
+    
+    data.full_edge_index = data.edge_index.to_sparse().to(device)
+    data.edge_index = data.train_pos_edge_index  # Use dense edges for training
 
-    # Convert to sparse and move to device AFTER splitting
-    data.edge_index = data.edge_index.to_sparse()
+    # Move ALL tensors to device after splitting
     data = data.to(device)
+    data.train_pos_edge_index = data.train_pos_edge_index.to(device)
+    data.val_pos_edge_index = data.val_pos_edge_index.to(device)
+    data.test_pos_edge_index = data.test_pos_edge_index.to(device)
+    data.full_edge_index = data.full_edge_index.to(device)
 
     # New validation checks for edge splits
     def _verify_split(edges, original_edges):
@@ -141,9 +156,16 @@ def load_and_preprocess_data(real_transactions_path, fake_addresses_path):
     return data, node_to_idx, fake_addresses
 
 
-def train_model(data, device, num_epochs=500, lr=0.001):
+def train_model(data, device, num_epochs=100, lr=0.001):
+
     model = VGAE(in_channels=data.x.size(1), hidden_dim=32, out_channels=16).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    
+    print(f"Model device: {next(model.parameters()).device}")
+    print(f"Data x device: {data.x.device}")
+    print(f"Train edges device: {data.train_pos_edge_index.device}")
+    
+    x = data.x.to(device)
     
     best_loss = float('inf')
     for epoch in range(num_epochs):
@@ -151,13 +173,13 @@ def train_model(data, device, num_epochs=500, lr=0.001):
         optimizer.zero_grad()
 
         # Training edges
-        train_edges = data.train_pos_edge_index
+        train_edges = data.train_pos_edge_index.to(device)
         neg_edge_index = negative_sampling(
             edge_index=train_edges,
             num_nodes=data.num_nodes,
-            num_neg_samples=train_edges.size(1))
+            num_neg_samples=train_edges.size(1)).to(device)
 
-        z, mu, logvar = model(data.x, train_edges)  # Use training edges
+        z, mu, logvar = model(x, train_edges)  # Use training edges
         
         # Calculate loss for positive and negative edges
         pos_logits = model.decode(z, data.train_pos_edge_index.to(device))
@@ -183,9 +205,10 @@ def train_model(data, device, num_epochs=500, lr=0.001):
         model.eval()
         with torch.no_grad():
             # Use training edges for encoding
-            z_val, mu_val, logvar_val = model(data.x, train_edges)
+            z_val, mu_val, logvar_val = model(x, train_edges)
             
             # Positive edges: data.val_pos_edge_index
+            val_edges = data.val_pos_edge_index.to(device)
             pos_logits = model.decode(z_val, data.val_pos_edge_index)
             
             # Sample negative edges for validation (not in training or validation)
@@ -213,6 +236,10 @@ def train_model(data, device, num_epochs=500, lr=0.001):
     return model
 
 def generate_fake_transactions(model, data, node_to_idx, fake_addresses, device, threshold=0.5):
+        # Convert edge_index to appropriate format (already dense tensor)
+    edge_index = data.edge_index.cpu()
+    real_edge_set = set(zip(edge_index[0].tolist(), edge_index[1].tolist()))  # Directly use dense format
+    
     model.eval()
     with torch.no_grad():
         z, _, _ = model(data.x.to(device), data.train_pos_edge_index.to(device))
@@ -222,31 +249,54 @@ def generate_fake_transactions(model, data, node_to_idx, fake_addresses, device,
     
     # Generate potential fake transactions
     fake_edges = []
-    real_edge_set = set(zip(data.edge_index[0].tolist(), data.edge_index[1].tolist()))
     
-    for fake_idx in fake_indices:
-        # Generate outgoing edges
-        logits_out = (z[fake_idx] * z[real_indices]).sum(dim=1)
-        probs_out = torch.sigmoid(logits_out)
-        mask_out = probs_out > threshold
-        for i, idx in enumerate(real_indices):
-            if mask_out[i] and (fake_idx, idx) not in real_edge_set:
-                fake_edges.append((fake_idx, idx))
+    # Process in chunks to avoid memory issues
+    chunk_size = 1000
+    for i in range(0, len(fake_indices), chunk_size):
+        print(f"Processing chunk {i // chunk_size + 1}/{math.ceil(len(fake_indices) / chunk_size)}")
         
-        # Generate incoming edges
-        logits_in = (z[real_indices] * z[fake_idx]).sum(dim=1)
+        chunk = fake_indices[i:i+chunk_size]
+        
+        # Convert indices to tensors on correct device
+        fake_tensor = torch.tensor(chunk, device=device, dtype=torch.long)
+        real_tensor = torch.tensor(real_indices, device=device, dtype=torch.long)
+        
+        # Calculate outgoing probabilities
+        z_fake = z[fake_tensor]
+        z_real = z[real_tensor]
+        logits_out = torch.mm(z_fake, z_real.t())
+        probs_out = torch.sigmoid(logits_out)
+        
+        # Find valid outgoing connections
+        mask_out = probs_out > threshold
+        src_ids, dst_ids = torch.where(mask_out)
+        
+        for src, dst in zip(src_ids, dst_ids):
+            fake_idx = chunk[src.item()]
+            real_idx = real_indices[dst.item()]
+            if (fake_idx, real_idx) not in real_edge_set:
+                fake_edges.append((fake_idx, real_idx))
+        
+        # Calculate incoming probabilities
+        logits_in = torch.mm(z_real, z_fake.t())
         probs_in = torch.sigmoid(logits_in)
+        
+        # Find valid incoming connections
         mask_in = probs_in > threshold
-        for i, idx in enumerate(real_indices):
-            if mask_in[i] and (idx, fake_idx) not in real_edge_set:
-                fake_edges.append((idx, fake_idx))
+        src_ids, dst_ids = torch.where(mask_in)
+        
+        for src, dst in zip(src_ids, dst_ids):
+            real_idx = real_indices[src.item()]
+            fake_idx = chunk[dst.item()]
+            if (real_idx, fake_idx) not in real_edge_set:
+                fake_edges.append((real_idx, fake_idx))
     
     # Convert indices to addresses
     idx_to_node = {v: k for k, v in node_to_idx.items()}
     fake_transactions = []
     for src_idx, dst_idx in fake_edges:
-        src = idx_to_node[src_idx.item()]
-        dst = idx_to_node[dst_idx.item()]
+        src = idx_to_node[src_idx]
+        dst = idx_to_node[dst_idx]
         fake_transactions.append({'from_address': src, 'to_address': dst})
     
     return pd.DataFrame(fake_transactions)
@@ -264,6 +314,8 @@ if __name__ == "__main__":
     
     # Train model
     trained_model = train_model(data, device)
+
+    torch.cuda.empty_cache()
     
     # Generate fake transactions
     fake_df = generate_fake_transactions(
