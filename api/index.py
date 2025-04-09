@@ -48,17 +48,16 @@ def get_nodes_links_from_df(transactions_df, start_idx, num_transactions):
 class QueryRequest(BaseModel):
     query: str
 
-# @app.on_event("startup")
-# async def startup():
-#     app.state.txs_df = pd.read_csv("./src/data/transactions.csv") 
-#     app.state.blocce_fund_txs_df = pd.read_csv("./api/fund_transactions.csv")
-#     app.state.blocce_covert_txs_df = pd.read_csv("./api/blocce_transactions.csv") 
-#     app.state.embedded_txs_df = pd.read_csv("./data/embedded_transactions.csv")
-#     app.state.nodes = []
-#     app.state.links = []
-#     app.state.blocce_fund_txs_idx = 0
-#     app.state.blocce_covert_txs_idx = 0
-
+@app.on_event("startup")
+async def startup():
+     app.state.txs_df = pd.read_csv("./src/data/transactions.csv") 
+     app.state.blocce_fund_txs_df = pd.read_csv("./api/fund_transactions.csv")
+     app.state.blocce_covert_txs_df = pd.read_csv("./src/data/blocce_transactions.csv") 
+     app.state.embedded_txs_df = pd.read_csv("./src/data/embedded_transactions.csv")
+     app.state.nodes = []
+     app.state.links = []
+     app.state.blocce_fund_txs_idx = 0
+     app.state.blocce_covert_txs_idx = 0
 
 @app.get("/api")
 def hello_world():
@@ -76,12 +75,6 @@ async def get_transactions(num_transactions: int):
     result = display_transactions.to_csv()
     return result
 
-
-@app.get("/get_detected_transactions")
-async def get_detected_transactions():
-    df = run_detection_and_return_table()
-    return loads(df.to_json(orient="records"))
-
 @app.get("/get_table_transactions")
 async def get_table_transactions(num_transactions: int): 
     transactions_df = app.state.txs_df
@@ -97,7 +90,8 @@ async def get_table_transactions(num_transactions: int):
 @app.get("/load_init_graph_transactions")
 async def get_init_graph_transactions(num_transactions: int):
     print("/load_init_graph_transactions called")
-    transactions_df = app.state.txs_df
+    #transactions_df = app.state.txs_df
+    transactions_df = pd.read_csv("src/data/transactions.csv")
     nodes, links = get_nodes_links_from_df(transactions_df, 0, num_transactions)
     # Save app state
     app.state.nodes.clear()
@@ -107,7 +101,7 @@ async def get_init_graph_transactions(num_transactions: int):
     return {"message": f"Initial graph transactions loaded with {num_transactions} transactions."}
 
 @app.get("/get_graph_transactions")
-async def get_graph_transactions(num_transactions: int): 
+async def get_graph_transactions(num_transactions: int = 10000): 
     transactions_df = app.state.blocce_fund_txs_df 
     print(app.state.blocce_fund_txs_idx)
     nodes, links = get_nodes_links_from_df(transactions_df, app.state.blocce_fund_txs_idx, num_transactions)
@@ -136,7 +130,7 @@ def read_items():
 
 @app.get("/inject_funding_transactions")
 def inject_funding_transactions():
-    
+
     return {"message": f"Injected funding transactions into graph"}
 
 @app.get("/inject_covert_transactions")
@@ -156,7 +150,7 @@ def detect_and_remove_covert_transactions():
 
 
 @app.get("/get_detected_transactions")
-async def get_detected_transactions(num_transactions: int):
+async def get_detected_transactions(num_transactions:  int = 1000): 
     detected_df = run_detection_and_return_table()
     display_df = detected_df.head(num_transactions)
 
